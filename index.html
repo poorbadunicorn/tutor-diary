@@ -184,8 +184,8 @@
   .chat-input-row textarea:focus{outline:none;border-color:var(--accent);}
 
   /* Calendar */
-  .cal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
-  .cal-header h2{margin:0;font-size:18px;text-transform:capitalize;}
+  .cal-header{display:flex;justify-content:flex-start;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
+  .cal-header h2{margin:0;font-size:18px;text-transform:capitalize;white-space:nowrap;}
   .cal-nav{display:flex;gap:6px;}
   .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;color:var(--muted);font-size:12px;text-align:center;}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
@@ -290,7 +290,6 @@
         <button class="btn-secondary btn-sm" onclick="nextMonth()">→</button>
       </div>
       <h2 id="calMonthLabel"></h2>
-      <div style="width:150px;"></div>
     </div>
     <div class="cal-weekdays">
       <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
@@ -1066,10 +1065,22 @@ async function shareMaterial(materialId){
 /* Shares text plus any image/file attachments via the native share sheet
    (so photos land as real attachments in Telegram, not just links).
    Falls back to text-only share, then to clipboard copy if sharing isn't available. */
-async function dataUrlToFile(dataUrl, filename){
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  return new File([blob], filename || 'file', { type: blob.type || 'application/octet-stream' });
+function dataUrlToFile(dataUrl, filename){
+  // Decoded manually (instead of fetch(dataUrl)) because some embedded
+  // WebViews (including Telegram's) block fetch() on data: URIs.
+  const commaIdx = dataUrl.indexOf(',');
+  const header = dataUrl.slice(0, commaIdx);
+  const base64 = dataUrl.slice(commaIdx + 1);
+  const mimeMatch = header.match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++){ bytes[i] = binary.charCodeAt(i); }
+  let safeName = filename || 'file';
+  if(mime.startsWith('image/') && !/\.[a-z0-9]+$/i.test(safeName)){
+    safeName += '.' + mime.split('/')[1].replace('jpeg','jpg');
+  }
+  return new File([bytes], safeName, { type: mime });
 }
 async function shareWithAttachments(text, attachments){
   const mediaAtts = (attachments||[]).filter(a=>(a.kind==='image' || a.kind==='file') && a.data);
@@ -1467,7 +1478,13 @@ function addLessonFromDay(){
 }
 
 /* ---------- MODAL HELPERS ---------- */
-function openModal(id){ document.getElementById(id).classList.add('open'); }
+function openModal(id){
+  const overlay = document.getElementById(id);
+  overlay.classList.add('open');
+  const inner = overlay.querySelector('.modal');
+  if(inner) inner.scrollTop = 0;
+  overlay.scrollTop = 0;
+}
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
   ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
