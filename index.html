@@ -230,7 +230,9 @@
   }
   .field input:focus, .field textarea:focus, .field select:focus{outline:none;border-color:var(--accent);}
   .field-row{display:flex;gap:10px;}
-  .field-row .field{flex:1;}
+  .field-row .field{flex:1;min-width:0;}
+  .field-row .field input{max-width:100%;}
+  .modal{overflow-x:hidden;}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
 
   .swatches{display:flex;gap:8px;flex-wrap:wrap;}
