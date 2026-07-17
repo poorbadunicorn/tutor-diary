@@ -818,7 +818,7 @@ function renderAttachmentsView(atts){
   if(!atts || atts.length===0) return '';
   const inner = atts.map(a=>{
     if(a.kind==='image'){
-      return `<span class="chip"><img src="${a.data}" alt=""></span>`;
+      return `<span class="chip"><a href="${a.data}" download="${escapeHtml(a.name||'photo.jpg')}" target="_blank" rel="noopener"><img src="${a.data}" alt=""></a></span>`;
     } else if(a.kind==='file'){
       return `<span class="chip"><a href="${a.data}" download="${escapeHtml(a.name)}">📄 ${escapeHtml(a.name)}</a></span>`;
     } else {
@@ -1073,6 +1073,7 @@ async function dataUrlToFile(dataUrl, filename){
 }
 async function shareWithAttachments(text, attachments){
   const mediaAtts = (attachments||[]).filter(a=>(a.kind==='image' || a.kind==='file') && a.data);
+  const manualNote = 'Чтобы отправить фото отдельно: откройте превью фото (нажмите на него), сохраните и перешлите вручную в чат с учеником.';
 
   if(navigator.share){
     let files = [];
@@ -1081,7 +1082,8 @@ async function shareWithAttachments(text, attachments){
         files = await Promise.all(mediaAtts.map((a,i)=>dataUrlToFile(a.data, a.name || ('attachment-'+i))));
       }catch(e){ files = []; }
     }
-    if(files.length && navigator.canShare && navigator.canShare({ files })){
+    const canShareFiles = files.length>0 && navigator.canShare && navigator.canShare({ files });
+    if(canShareFiles){
       try{
         await navigator.share({ text, files });
         return;
@@ -1091,6 +1093,9 @@ async function shareWithAttachments(text, attachments){
     }
     try{
       await navigator.share({ text });
+      if(mediaAtts.length){
+        notifyToast('Текст отправлен. Это устройство не позволяет переслать фото через это меню — ' + manualNote);
+      }
       return;
     }catch(e){
       // cancelled or unsupported — fall back to copy below
@@ -1098,21 +1103,22 @@ async function shareWithAttachments(text, attachments){
   }
 
   if(mediaAtts.length){
-    copyToClipboard(text + '\n\n(Фото/файлы не поддерживаются автокопированием — откройте их в приложении и перешлите ученику отдельно.)');
+    copyToClipboard(text, 'Текст скопирован. ' + manualNote);
   } else {
     copyToClipboard(text);
   }
 }
-function copyToClipboard(text){
+function copyToClipboard(text, successMsg){
+  const msg = successMsg || 'Скопировано! Вставьте текст в чат с учеником.';
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(()=>{
-      notifyToast('Скопировано! Вставьте текст в чат с учеником.');
-    }).catch(()=>{ fallbackCopy(text); });
+      notifyToast(msg);
+    }).catch(()=>{ fallbackCopy(text, msg); });
   } else {
-    fallbackCopy(text);
+    fallbackCopy(text, msg);
   }
 }
-function fallbackCopy(text){
+function fallbackCopy(text, successMsg){
   const ta = document.createElement('textarea');
   ta.value = text;
   ta.style.position = 'fixed';
@@ -1122,7 +1128,7 @@ function fallbackCopy(text){
   ta.select();
   try{
     document.execCommand('copy');
-    notifyToast('Скопировано! Вставьте текст в чат с учеником.');
+    notifyToast(successMsg || 'Скопировано! Вставьте текст в чат с учеником.');
   }catch(e){
     notifyToast('Не удалось скопировать. Выделите текст вручную.');
   }
