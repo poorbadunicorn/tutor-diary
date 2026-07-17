@@ -377,7 +377,7 @@
     </div>
     <div class="field">
       <label>Стоимость занятия (₽, необязательно)</label>
-      <input type="number" inputmode="numeric" min="0" step="1" id="lessonPriceInput" placeholder="Например, 1500">
+      <input type="text" inputmode="numeric" pattern="[0-9]*" id="lessonPriceInput" placeholder="Например, 1500" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     </div>
 
     <div class="field">
@@ -990,8 +990,8 @@ function saveLesson(){
   const date = document.getElementById('lessonDateInput').value;
   const time = document.getElementById('lessonTimeInput').value;
   const topic = document.getElementById('lessonTopicInput').value.trim();
-  const priceRaw = document.getElementById('lessonPriceInput').value;
-  const price = priceRaw ? Math.max(0, Number(priceRaw)) : 0;
+  const priceRaw = document.getElementById('lessonPriceInput').value.replace(/[^\d]/g,'');
+  const price = priceRaw ? parseInt(priceRaw, 10) : 0;
   const homework = document.getElementById('lessonHwInput').value.trim();
   const solution = document.getElementById('lessonSolutionInput').value.trim();
 
@@ -1040,15 +1040,68 @@ async function shareHomework(lessonId){
   const s = getCurrentStudent();
   const l = s.lessons.find(x=>x.id===lessonId);
   const text = buildHomeworkText(s, l);
+  await shareWithAttachments(text, l.homeworkAttachments);
+}
+function buildMaterialText(s, m){
+  let text = `${s.name}${s.subject ? ' — '+s.subject : ''}`;
+  if(m.title) text += `\n${m.title}`;
+  text += '\n';
+  if(m.text) text += `\n${m.text}\n`;
+  const links = (m.attachments||[]).filter(a=>a.kind==='link').map(a=>a.url);
+  if(links.length) text += `\nСсылки:\n` + links.join('\n');
+  return text.trim();
+}
+function copyMaterial(materialId){
+  const s = getCurrentStudent();
+  const m = s.materials.find(x=>x.id===materialId);
+  copyToClipboard(buildMaterialText(s, m));
+}
+async function shareMaterial(materialId){
+  const s = getCurrentStudent();
+  const m = s.materials.find(x=>x.id===materialId);
+  const text = buildMaterialText(s, m);
+  await shareWithAttachments(text, m.attachments);
+}
+
+/* Shares text plus any image/file attachments via the native share sheet
+   (so photos land as real attachments in Telegram, not just links).
+   Falls back to text-only share, then to clipboard copy if sharing isn't available. */
+async function dataUrlToFile(dataUrl, filename){
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  return new File([blob], filename || 'file', { type: blob.type || 'application/octet-stream' });
+}
+async function shareWithAttachments(text, attachments){
+  const mediaAtts = (attachments||[]).filter(a=>(a.kind==='image' || a.kind==='file') && a.data);
+
   if(navigator.share){
+    let files = [];
+    if(mediaAtts.length){
+      try{
+        files = await Promise.all(mediaAtts.map((a,i)=>dataUrlToFile(a.data, a.name || ('attachment-'+i))));
+      }catch(e){ files = []; }
+    }
+    if(files.length && navigator.canShare && navigator.canShare({ files })){
+      try{
+        await navigator.share({ text, files });
+        return;
+      }catch(e){
+        // sharing with files failed/cancelled — try text-only next
+      }
+    }
     try{
       await navigator.share({ text });
       return;
     }catch(e){
-      // user cancelled the share sheet or it failed — fall back to copy
+      // cancelled or unsupported — fall back to copy below
     }
   }
-  copyToClipboard(text);
+
+  if(mediaAtts.length){
+    copyToClipboard(text + '\n\n(Фото/файлы не поддерживаются автокопированием — откройте их в приложении и перешлите ученику отдельно.)');
+  } else {
+    copyToClipboard(text);
+  }
 }
 function copyToClipboard(text){
   if(navigator.clipboard && navigator.clipboard.writeText){
@@ -1112,6 +1165,10 @@ function renderMaterials(){
       </div>
       ${m.text ? `<div class="material-text">${escapeHtml(m.text)}</div>` : ''}
       ${renderAttachmentsView(m.attachments)}
+      <div class="hw-share-row">
+        <button class="btn-ghost btn-sm" onclick="copyMaterial('${m.id}')">📋 Копировать</button>
+        <button class="btn-ghost btn-sm" onclick="shareMaterial('${m.id}')">↗ Отправить ученику</button>
+      </div>
     </div>
   `).join('');
 }
