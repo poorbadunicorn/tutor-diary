@@ -484,6 +484,19 @@
   </div>
 </div>
 
+<!-- ADD TO CALENDAR CHOICE MODAL -->
+<div class="modal-overlay" id="calendarChoiceModalOverlay">
+  <div class="modal">
+    <h3>Добавить в календарь</h3>
+    <p class="muted-note" style="margin-top:-8px;">Выберите, куда добавить занятие</p>
+    <div class="modal-actions" style="justify-content:stretch;flex-direction:column;gap:8px;">
+      <button class="btn-secondary" onclick="chooseGoogleCalendar()">📅 Google Calendar</button>
+      <button class="btn-secondary" onclick="chooseAppleCalendar()">🍎 Apple Calendar / Outlook</button>
+      <button class="btn-ghost" onclick="pendingCalendarLessonId=null; closeModal('calendarChoiceModalOverlay')">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settingsModalOverlay">
   <div class="modal">
@@ -532,6 +545,7 @@ let editingMaterialId = null;
 let selectedColor = COLORS[0];
 let modalReturnContext = null; // 'day' when lesson modal opened from calendar day view
 let pendingDeleteLessonId = null;
+let pendingCalendarLessonId = null;
 let currentDayDate = null;
 let calCursor = new Date(); calCursor.setDate(1);
 
@@ -911,8 +925,7 @@ function renderLessons(s){
         </div>
         <div class="lesson-actions">
           <button class="pay-toggle ${l.paid?'paid':'unpaid'}" onclick="togglePaid('${l.id}')">${payLabel(l)}</button>
-          <button class="btn-ghost btn-sm" onclick="addToGoogleCalendar('${l.id}')" title="Добавить в Google Calendar">📅</button>
-          <button class="btn-ghost btn-sm" onclick="addToAppleCalendar('${l.id}')" title="Добавить в Apple Calendar / Outlook (.ics)">📆</button>
+          <button class="btn-ghost btn-sm" onclick="openCalendarChoice('${l.id}')" title="Добавить в календарь">🗓️</button>
           <button class="btn-ghost btn-sm" onclick="openLessonModal('${l.id}')">Изм.</button>
           <button class="btn-ghost btn-sm" onclick="removeLesson('${l.id}')">Удал.</button>
         </div>
@@ -1490,6 +1503,27 @@ async function syncReminders(){
   }
   reminderSyncInProgress = false;
   if(reminderSyncPending){ reminderSyncPending = false; syncReminders(); }
+}
+
+/* ---------- ДОБАВЛЕНИЕ В КАЛЕНДАРЬ (выбор Google / Apple) ---------- */
+function openCalendarChoice(lessonId){
+  const s = getCurrentStudent();
+  const l = s.lessons.find(x=>x.id===lessonId);
+  if(!l || !l.date){ notifyToast('Сначала укажите дату занятия.'); return; }
+  pendingCalendarLessonId = lessonId;
+  openModal('calendarChoiceModalOverlay');
+}
+function chooseGoogleCalendar(){
+  const id = pendingCalendarLessonId;
+  pendingCalendarLessonId = null;
+  closeModal('calendarChoiceModalOverlay');
+  if(id) addToGoogleCalendar(id);
+}
+function chooseAppleCalendar(){
+  const id = pendingCalendarLessonId;
+  pendingCalendarLessonId = null;
+  closeModal('calendarChoiceModalOverlay');
+  if(id) addToAppleCalendar(id);
 }
 
 /* ---------- GOOGLE CALENDAR (простая ссылка, без авторизации) ---------- */
