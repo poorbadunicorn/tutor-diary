@@ -1581,16 +1581,35 @@ function buildICS(studentName, l){
   ].filter(Boolean);
   return lines.join('\r\n');
 }
-function addToAppleCalendar(lessonId){
+async function addToAppleCalendar(lessonId){
   const s = getCurrentStudent();
   const l = s.lessons.find(x=>x.id===lessonId);
   if(!l.date){ notifyToast('Сначала укажите дату занятия.'); return; }
   const ics = buildICS(s.name, l);
+  const filename = `lesson_${l.date}.ics`;
+  const title = `Занятие: ${s.name}\n${formatDate(l.date)}${l.time ? ', ' + l.time : ''}${l.topic ? '\nТема: ' + l.topic : ''}`;
+
+  // Внутри Telegram (встроенный WebView) обычная скачка файла (download-ссылка)
+  // не работает — вместо диалога "Добавить в календарь" просто открывается
+  // сырой текст файла. Поэтому там открываем маленькую страницу-помощник в
+  // настоящем внешнем браузере (tg.openLink) — там скачивание .ics работает
+  // как обычно, и она сама сразу запускает скачивание.
+  if(tg && tg.initData && tg.initData.length > 0 && tg.openLink){
+    const base = new URL('add-to-calendar.html', window.location.href);
+    base.searchParams.set('ics', ics);
+    base.searchParams.set('fn', filename);
+    base.searchParams.set('title', title);
+    tg.openLink(base.toString());
+    notifyToast('Открываем в браузере — файл скачается автоматически, нажмите на него, чтобы добавить в календарь.');
+    return;
+  }
+
+  // Вне Telegram (обычная веб-страница, настоящий браузер) — скачиваем сразу на месте.
   const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `lesson_${l.date}.ics`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

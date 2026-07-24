@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Добавить в календарь</title>
+<style>
+  :root{
+    --bg:#0f1117;
+    --surface:#171a23;
+    --surface2:#1e222d;
+    --border:#2a2e3a;
+    --text:#e8e9ec;
+    --muted:#9aa0ab;
+    --accent:#6c8cff;
+    --success:#3ecf8e;
+    --danger:#ef5b5b;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:20px;
+  }
+  .card{
+    width:100%;
+    max-width:380px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:24px 20px;
+    text-align:center;
+  }
+  h1{font-size:18px;margin:0 0 8px;}
+  p{font-size:14px;color:var(--muted);line-height:1.5;margin:0 0 18px;}
+  .event{
+    background:var(--surface2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:12px 14px;
+    text-align:left;
+    font-size:14px;
+    margin-bottom:18px;
+    white-space:pre-wrap;
+  }
+  .btn{
+    display:block;
+    width:100%;
+    padding:13px;
+    border:none;
+    border-radius:8px;
+    background:var(--accent);
+    color:#0b0d13;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+    text-decoration:none;
+  }
+  .btn:active{opacity:0.85;}
+  .note{margin-top:14px;font-size:12.5px;color:var(--muted);}
+  .error{color:var(--danger);}
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <h1>Добавить занятие в календарь</h1>
+    <p id="desc">Загрузка данных о занятии…</p>
+    <div id="content"></div>
+  </div>
+
+<script>
+  function qs(name){
+    const params = new URLSearchParams(window.location.search);
+    return params.get(name);
+  }
+  function render(){
+    const ics = qs('ics');
+    const fn = qs('fn') || 'lesson.ics';
+    const title = qs('title') || 'Занятие';
+    const descEl = document.getElementById('desc');
+    const contentEl = document.getElementById('content');
+
+    if(!ics){
+      descEl.textContent = 'Не переданы данные о занятии.';
+      descEl.classList.add('error');
+      return;
+    }
+
+    descEl.textContent = 'Нажмите кнопку ниже — файл скачается, и iOS/Android предложит открыть его в календаре.';
+
+    const eventBox = document.createElement('div');
+    eventBox.className = 'event';
+    eventBox.textContent = title;
+    contentEl.appendChild(eventBox);
+
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+
+    const btn = document.createElement('a');
+    btn.className = 'btn';
+    btn.href = url;
+    btn.download = fn;
+    btn.textContent = '📅 Скачать и добавить в календарь';
+    contentEl.appendChild(btn);
+
+    const note = document.createElement('div');
+    note.className = 'note';
+    note.textContent = 'После скачивания откройте файл (уведомление внизу экрана или папка "Файлы") — календарь предложит добавить событие.';
+    contentEl.appendChild(note);
+
+    // Пробуем скачать автоматически, чтобы не заставлять нажимать дважды.
+    setTimeout(() => { try{ btn.click(); }catch(e){} }, 300);
+  }
+  render();
+</script>
+</body>
+</html>
