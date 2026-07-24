@@ -912,6 +912,7 @@ function renderLessons(s){
         <div class="lesson-actions">
           <button class="pay-toggle ${l.paid?'paid':'unpaid'}" onclick="togglePaid('${l.id}')">${payLabel(l)}</button>
           <button class="btn-ghost btn-sm" onclick="addToGoogleCalendar('${l.id}')" title="Добавить в Google Calendar">📅</button>
+          <button class="btn-ghost btn-sm" onclick="addToAppleCalendar('${l.id}')" title="Добавить в Apple Calendar / Outlook (.ics)">📆</button>
           <button class="btn-ghost btn-sm" onclick="openLessonModal('${l.id}')">Изм.</button>
           <button class="btn-ghost btn-sm" onclick="removeLesson('${l.id}')">Удал.</button>
         </div>
@@ -1511,6 +1512,56 @@ function addToGoogleCalendar(lessonId){
   if(!l.date){ notifyToast('Сначала укажите дату занятия.'); return; }
   const url = googleCalendarUrl(s.name, l);
   if(tg && tg.openLink){ tg.openLink(url); } else { window.open(url, '_blank'); }
+}
+
+/* ---------- APPLE CALENDAR / OUTLOOK (файл .ics, без авторизации) ---------- */
+function icsEscape(str){
+  return String(str || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n');
+}
+function icsDate(d){
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}00`;
+}
+function buildICS(studentName, l){
+  const start = new Date(`${l.date}T${l.time || '09:00'}:00`);
+  const end = new Date(start.getTime() + 60*60000); // 1 час по умолчанию
+  const now = new Date();
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Dnevnik Prepodavatelya//RU',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:${l.id}@dnevnik-prepodavatelya`,
+    `DTSTAMP:${icsDate(now)}Z`,
+    `DTSTART:${icsDate(start)}`,
+    `DTEND:${icsDate(end)}`,
+    `SUMMARY:${icsEscape('Занятие: ' + studentName)}`,
+    l.topic ? `DESCRIPTION:${icsEscape('Тема: ' + l.topic)}` : '',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].filter(Boolean);
+  return lines.join('\r\n');
+}
+function addToAppleCalendar(lessonId){
+  const s = getCurrentStudent();
+  const l = s.lessons.find(x=>x.id===lessonId);
+  if(!l.date){ notifyToast('Сначала укажите дату занятия.'); return; }
+  const ics = buildICS(s.name, l);
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `lesson_${l.date}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  notifyToast('Файл .ics скачан — откройте его, чтобы добавить занятие в календарь.');
 }
 
 /* ---------- CALENDAR ---------- */
