@@ -385,6 +385,17 @@
       <input type="text" inputmode="numeric" pattern="[0-9]*" id="lessonPriceInput" placeholder="Например, 1500" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     </div>
 
+    <div class="field" id="recurringFieldWrap">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="lessonRecurringCheckbox" style="width:auto;" onchange="document.getElementById('recurringUntilWrap').style.display=this.checked?'block':'none';">
+        Повторять каждую неделю (в этот же день и время)
+      </label>
+      <div id="recurringUntilWrap" style="display:none;margin-top:10px;">
+        <label>До какой даты (включительно)</label>
+        <input type="date" id="lessonRecurringUntilInput">
+      </div>
+    </div>
+
     <div class="field">
       <label>Домашнее задание</label>
       <textarea id="lessonHwInput" rows="3" placeholder="Что задано ученику"></textarea>
@@ -460,6 +471,19 @@
   </div>
 </div>
 
+<!-- RECURRING SERIES DELETE MODAL -->
+<div class="modal-overlay" id="seriesDeleteModalOverlay">
+  <div class="modal">
+    <h3>Это повторяющееся занятие</h3>
+    <p class="muted-note" style="margin-top:-8px;">Удалить только это занятие или это и все последующие в серии?</p>
+    <div class="modal-actions" style="justify-content:stretch;flex-direction:column;gap:8px;">
+      <button class="btn-secondary" onclick="deleteLessonOnly()">Удалить только это</button>
+      <button class="btn-danger" onclick="deleteLessonSeries()">Удалить это и все будущие</button>
+      <button class="btn-ghost" onclick="pendingDeleteLessonId=null; closeModal('seriesDeleteModalOverlay')">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settingsModalOverlay">
   <div class="modal">
@@ -478,6 +502,13 @@
     </div>
     <div class="muted-note">Ключ используется для запросов прямо из браузера к api.anthropic.com. Никуда, кроме Anthropic, не отправляется.</div>
     <div class="muted-note" id="cloudNote" style="margin-top:8px;display:none;">Приложение открыто в Telegram: данные синхронизируются через облако Telegram и видны на всех ваших устройствах. Место ограничено (~4 МБ) — для больших фото и файлов лучше добавлять ссылку, а не загружать сам файл.</div>
+
+    <div class="field" style="margin-top:18px;">
+      <label>Адрес сервера напоминаний (необязательно)</label>
+      <input type="text" id="serverUrlInput" placeholder="https://ваш-сервер.onrender.com">
+    </div>
+    <div class="muted-note">Если завели сервер напоминаний — вставьте его адрес (корень сайта, без /api/... на конце). Тогда бот сам напишет вам в Telegram за час до занятия и напомнит проверить ДЗ, если оно осталось непроверенным сутки.</div>
+
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('settingsModalOverlay')">Отмена</button>
       <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
@@ -500,6 +531,7 @@ let editingLessonId = null;
 let editingMaterialId = null;
 let selectedColor = COLORS[0];
 let modalReturnContext = null; // 'day' when lesson modal opened from calendar day view
+let pendingDeleteLessonId = null;
 let currentDayDate = null;
 let calCursor = new Date(); calCursor.setDate(1);
 
@@ -606,6 +638,7 @@ async function saveToCloudSafe(){
   try{
     await saveToCloud();
     showSyncStatus('ok');
+    syncReminders();
   }catch(e){
     console.error(e);
     showSyncStatus('error', e.message);
@@ -641,19 +674,26 @@ async function init(){
   }
   normalize();
   switchView('students');
+  syncReminders();
 }
 
 function normalize(){
   if(!data.students) data.students = [];
-  if(!data.settings) data.settings = { apiKey:'', model:'claude-sonnet-5' };
+  if(!data.settings) data.settings = { apiKey:'', model:'claude-sonnet-5', serverUrl:'' };
   if(data.settings.apiKey === undefined) data.settings.apiKey = '';
   if(!data.settings.model) data.settings.model = 'claude-sonnet-5';
+  if(data.settings.serverUrl === undefined) data.settings.serverUrl = '';
+  // migrate from the old field (used to store the full .../api/sync URL)
+  if(!data.settings.serverUrl && data.settings.reminderApiUrl){
+    data.settings.serverUrl = data.settings.reminderApiUrl.replace(/\/api\/sync\/?$/,'').replace(/\/+$/,'');
+  }
   data.students.forEach(s=>{
     if(!s.materials) s.materials = [];
     if(!s.chat) s.chat = [];
     (s.lessons||[]).forEach(l=>{
       if(l.paid === undefined) l.paid = false;
       if(l.price === undefined || l.price === null) l.price = 0;
+      if(l.recurrenceId === undefined) l.recurrenceId = null;
       if(!l.homeworkAttachments) l.homeworkAttachments = [];
       if(!l.solutionAttachments) l.solutionAttachments = [];
     });
@@ -866,11 +906,12 @@ function renderLessons(s){
     el.innerHTML = `
       <div class="lesson-top">
         <div>
-          <span class="lesson-date">${formatDate(l.date) || 'Дата не указана'}</span>
+          <span class="lesson-date">${l.recurrenceId ? '🔁 ' : ''}${formatDate(l.date) || 'Дата не указана'}</span>
           ${l.time ? `<span class="lesson-time">${l.time}</span>` : ''}
         </div>
         <div class="lesson-actions">
           <button class="pay-toggle ${l.paid?'paid':'unpaid'}" onclick="togglePaid('${l.id}')">${payLabel(l)}</button>
+          <button class="btn-ghost btn-sm" onclick="addToGoogleCalendar('${l.id}')" title="Добавить в Google Calendar">📅</button>
           <button class="btn-ghost btn-sm" onclick="openLessonModal('${l.id}')">Изм.</button>
           <button class="btn-ghost btn-sm" onclick="removeLesson('${l.id}')">Удал.</button>
         </div>
@@ -988,6 +1029,12 @@ function openLessonModal(id, prefillDate){
   renderAttachmentChips('hw');
   renderAttachmentChips('sol');
 
+  // Recurrence only makes sense when creating a brand-new lesson
+  document.getElementById('recurringFieldWrap').style.display = l ? 'none' : 'block';
+  document.getElementById('lessonRecurringCheckbox').checked = false;
+  document.getElementById('recurringUntilWrap').style.display = 'none';
+  document.getElementById('lessonRecurringUntilInput').value = '';
+
   openModal('lessonModalOverlay');
 }
 function saveLesson(){
@@ -1004,7 +1051,31 @@ function saveLesson(){
     const l = s.lessons.find(x=>x.id===editingLessonId);
     Object.assign(l, { date, time, topic, price, homework, solution, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol });
   } else {
-    s.lessons.push({ id: uid(), date, time, topic, price, homework, solution, checked:false, paid:false, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol });
+    const isRecurring = document.getElementById('lessonRecurringCheckbox').checked;
+    const untilStr = document.getElementById('lessonRecurringUntilInput').value;
+
+    if(isRecurring && date && untilStr && untilStr >= date){
+      const recurrenceId = uid();
+      const startDate = new Date(date + 'T00:00:00');
+      const untilDate = new Date(untilStr + 'T00:00:00');
+      const MAX_OCCURRENCES = 52; // safety cap (about a year of weekly lessons)
+      let cursor = new Date(startDate);
+      let count = 0;
+      while(cursor <= untilDate && count < MAX_OCCURRENCES){
+        const occDate = toDateStr(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+        s.lessons.push({
+          id: uid(), date: occDate, time, topic, price, homework, solution,
+          checked:false, paid:false,
+          homeworkAttachments: JSON.parse(JSON.stringify(drafts.hw)),
+          solutionAttachments: JSON.parse(JSON.stringify(drafts.sol)),
+          recurrenceId
+        });
+        cursor.setDate(cursor.getDate() + 7);
+        count++;
+      }
+    } else {
+      s.lessons.push({ id: uid(), date, time, topic, price, homework, solution, checked:false, paid:false, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol, recurrenceId: null });
+    }
   }
   save();
   closeModal('lessonModalOverlay');
@@ -1018,10 +1089,35 @@ function saveLesson(){
   }
 }
 function removeLesson(id){
-  if(!confirm('Удалить это занятие?')) return;
   const s = getCurrentStudent();
+  const l = s.lessons.find(x=>x.id===id);
+  if(l && l.recurrenceId){
+    pendingDeleteLessonId = id;
+    openModal('seriesDeleteModalOverlay');
+    return;
+  }
+  if(!confirm('Удалить это занятие?')) return;
   s.lessons = s.lessons.filter(x=>x.id!==id);
   save();
+  renderDetail();
+}
+function deleteLessonOnly(){
+  const s = getCurrentStudent();
+  s.lessons = s.lessons.filter(x=>x.id!==pendingDeleteLessonId);
+  pendingDeleteLessonId = null;
+  save();
+  closeModal('seriesDeleteModalOverlay');
+  renderDetail();
+}
+function deleteLessonSeries(){
+  const s = getCurrentStudent();
+  const target = s.lessons.find(x=>x.id===pendingDeleteLessonId);
+  if(target && target.recurrenceId){
+    s.lessons = s.lessons.filter(x=> !(x.recurrenceId===target.recurrenceId && x.date >= target.date));
+  }
+  pendingDeleteLessonId = null;
+  save();
+  closeModal('seriesDeleteModalOverlay');
   renderDetail();
 }
 
@@ -1336,13 +1432,85 @@ ${lessonsContext || 'Занятий пока нет.'}
 function openSettingsModal(){
   document.getElementById('apiKeyInput').value = data.settings.apiKey || '';
   document.getElementById('modelSelect').value = data.settings.model || 'claude-sonnet-5';
+  document.getElementById('serverUrlInput').value = data.settings.serverUrl || '';
   openModal('settingsModalOverlay');
 }
 function saveSettings(){
   data.settings.apiKey = document.getElementById('apiKeyInput').value.trim();
   data.settings.model = document.getElementById('modelSelect').value;
+  data.settings.serverUrl = document.getElementById('serverUrlInput').value.trim().replace(/\/+$/,'');
   save();
   closeModal('settingsModalOverlay');
+  syncReminders();
+}
+function serverEndpoint(path){
+  const base = data.settings && data.settings.serverUrl;
+  if(!base) return null;
+  return base.replace(/\/+$/,'') + path;
+}
+
+/* ---------- SERVER SYNC (reminders + Google Calendar) ----------
+   Best-effort: sends a lightweight (no photos) copy of lessons to your own
+   server (see reminder-bot/), which pings you in Telegram before lessons,
+   about unchecked homework, and pushes lessons to Google Calendar if you've
+   connected it. Silently does nothing if no server URL is set, or if not
+   running inside Telegram. */
+let reminderSyncInProgress = false;
+let reminderSyncPending = false;
+async function syncReminders(){
+  const url = serverEndpoint('/api/sync');
+  if(!USE_CLOUD || !url || !tg || !tg.initData) return;
+  if(reminderSyncInProgress){ reminderSyncPending = true; return; }
+  reminderSyncInProgress = true;
+  try{
+    const payload = {
+      initData: tg.initData,
+      students: data.students.map(s=>({
+        id: s.id,
+        name: s.name,
+        subject: s.subject || '',
+        lessons: (s.lessons||[]).map(l=>({
+          id: l.id,
+          date: l.date || '',
+          time: l.time || '',
+          topic: l.topic || '',
+          hasHomework: !!(l.homework && l.homework.trim()),
+          checked: !!l.checked
+        }))
+      }))
+    };
+    await fetch(url, {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+  }catch(e){
+    // best-effort — reminders/Google sync just won't fire until the next successful sync
+  }
+  reminderSyncInProgress = false;
+  if(reminderSyncPending){ reminderSyncPending = false; syncReminders(); }
+}
+
+/* ---------- GOOGLE CALENDAR (простая ссылка, без авторизации) ---------- */
+function googleCalendarUrl(studentName, l){
+  const startDT = `${l.date}T${l.time || '09:00'}:00`;
+  const start = new Date(startDT);
+  const end = new Date(start.getTime() + 60*60000); // 1 час по умолчанию
+  const fmt = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}00`;
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `Занятие: ${studentName}`,
+    dates: `${fmt(start)}/${fmt(end)}`,
+    details: l.topic ? `Тема: ${l.topic}` : ''
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+function addToGoogleCalendar(lessonId){
+  const s = getCurrentStudent();
+  const l = s.lessons.find(x=>x.id===lessonId);
+  if(!l.date){ notifyToast('Сначала укажите дату занятия.'); return; }
+  const url = googleCalendarUrl(s.name, l);
+  if(tg && tg.openLink){ tg.openLink(url); } else { window.open(url, '_blank'); }
 }
 
 /* ---------- CALENDAR ---------- */
