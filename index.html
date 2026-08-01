@@ -7,6 +7,9 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root{
+    /* Сообщаем браузеру, что интерфейс тёмный: тогда системные всплывающие
+       окошки выбора даты и времени тоже рисуются тёмными, а не белыми. */
+    color-scheme: dark;
     --bg:#0f1117;
     --surface:#171a23;
     --surface2:#1e222d;
@@ -156,15 +159,54 @@
   .pay-toggle.unpaid{background:var(--danger-dim);color:#ffb0b0;border-color:#5c2a2a;}
 
   /* Attachments */
-  .chips-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
-  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:12px;}
-  .chip img{width:28px;height:28px;object-fit:cover;border-radius:5px;display:block;}
-  .chip a{color:var(--accent);text-decoration:none;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .chip button{background:transparent;color:var(--muted);padding:0 2px;font-size:12px;border-radius:4px;}
-  .chip button:hover{color:var(--danger);}
-  .attach-controls{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap;}
-  .attach-controls input[type=text]{flex:1;min-width:130px;padding:7px 10px;font-size:16px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;}
-  .attach-controls input[type=text]:focus{outline:none;border-color:var(--accent);}
+  .chips-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 6px 4px 4px;font-size:12px;}
+  .chip img{width:26px;height:26px;object-fit:cover;border-radius:50%;display:block;}
+  .chip a{color:var(--text);text-decoration:none;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:4px;}
+  .chip button{background:transparent;color:var(--muted);padding:1px 3px;font-size:12px;border-radius:50%;line-height:1;}
+  .chip button:hover{color:var(--danger);background:var(--danger-dim);}
+  /* Smart input: textarea that auto-detects links, accepts pasted/dropped photos & files */
+  .smart-input{position:relative;}
+  .smart-input textarea{padding-right:42px;}
+  .smart-input.dragover textarea{border-color:var(--accent);background:var(--surface);}
+  .clip-btn{
+    position:absolute;right:8px;bottom:8px;background:transparent;color:var(--muted);
+    padding:5px 7px;font-size:15px;line-height:1;border-radius:7px;opacity:.7;
+  }
+  .clip-btn:hover{opacity:1;color:var(--accent);background:var(--surface);filter:none;}
+  .smart-hint{font-size:11.5px;color:var(--muted);margin-top:6px;opacity:.75;}
+
+  /* Toggle switch
+     ВАЖНО: селектор должен быть не менее специфичным, чем ".field label",
+     иначе тот навяжет display:block и флекс-раскладка сломается. */
+  .field label.switch-row, .switch-row{
+    display:flex;align-items:center;gap:14px;cursor:pointer;
+    background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;
+    margin-bottom:0;font-size:inherit;color:inherit;
+    transition:border-color .15s,background .15s;
+  }
+  .switch-row:hover{border-color:var(--accent-dim);}
+  .switch-row.on{border-color:var(--accent);background:rgba(108,140,255,.1);}
+  .switch-text{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .switch-title{font-size:13.5px;font-weight:500;color:var(--muted);transition:color .15s;}
+  .switch-row.on .switch-title{color:var(--text);}
+  .switch-sub{font-size:11.5px;color:var(--muted);line-height:1.35;opacity:.8;}
+  .switch{
+    display:block;position:relative;flex:0 0 auto;
+    width:52px;height:30px;border-radius:15px;box-sizing:border-box;
+    background:#313543;border:1px solid var(--border);
+    transition:background .2s,border-color .2s;
+  }
+  .switch::after{
+    content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+    background:#8b91a0;box-shadow:0 1px 3px rgba(0,0,0,.4);
+    transition:transform .2s,background .2s;
+  }
+  .switch-row.on .switch{background:var(--accent);border-color:var(--accent);}
+  .switch-row.on .switch::after{transform:translateX(20px);background:#fff;}
+  .field .switch input, .switch input{
+    position:absolute;opacity:0;width:0;height:0;padding:0;margin:0;border:0;min-height:0;
+  }
 
   /* Materials */
   .material-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;}
@@ -229,10 +271,102 @@
     padding:9px 11px;color:var(--text);font-family:inherit;font-size:16px;resize:vertical;
   }
   .field input:focus, .field textarea:focus, .field select:focus{outline:none;border-color:var(--accent);}
-  .field input[type="date"], .field input[type="time"]{
-    -webkit-appearance:none;appearance:none;
-    display:block;min-height:38px;
+  /* Своё поле даты/времени — вместо системного, который не поддаётся стилизации */
+  .picker-field{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
+    background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+    padding:10px 12px;min-height:42px;color:var(--text);font-family:inherit;font-size:15px;
+    font-variant-numeric:tabular-nums;cursor:pointer;text-align:left;
+    transition:border-color .15s,background .15s;
   }
+  .picker-field:hover{border-color:var(--accent-dim);filter:none;}
+  .picker-field.filled{color:var(--text);}
+  .picker-field .pf-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .picker-field .pf-value.empty{color:var(--muted);}
+  .picker-field .pf-icon{flex-shrink:0;opacity:.55;font-size:14px;line-height:1;}
+
+  .picker-overlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+    align-items:center;justify-content:center;padding:20px;z-index:300;
+  }
+  .picker-overlay.open{display:flex;}
+  .picker-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:16px;width:100%;max-width:340px;box-shadow:0 18px 50px rgba(0,0,0,.5);
+  }
+  .picker-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}
+  .picker-head .pk-title{font-size:15px;font-weight:600;text-transform:capitalize;}
+  .picker-nav{display:flex;gap:4px;}
+  .picker-nav button{
+    background:var(--surface2);border:1px solid var(--border);color:var(--muted);
+    width:32px;height:32px;padding:0;border-radius:8px;font-size:15px;line-height:1;
+  }
+  .picker-nav button:hover{color:var(--text);border-color:var(--accent-dim);filter:none;}
+
+  .pk-weekdays{
+    display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;
+    font-size:11px;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.04em;
+  }
+  .pk-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .pk-day{
+    background:transparent;border:1px solid transparent;color:var(--text);
+    aspect-ratio:1;padding:0;border-radius:9px;font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .pk-day:hover{background:var(--surface2);filter:none;}
+  .pk-day.other{color:var(--muted);opacity:.4;}
+  .pk-day.today{border-color:var(--accent-dim);color:var(--accent);}
+  .pk-day.selected{background:var(--accent);color:#0b0d13;font-weight:600;border-color:var(--accent);}
+
+  .pk-actions{display:flex;gap:8px;margin-top:14px;}
+  .pk-actions button{flex:1;font-size:13px;padding:9px;}
+
+  /* Выбор времени: крутящиеся барабаны, как в iPhone.
+     ITEM = 40px, видно 5 позиций, выбранная — в центре. */
+  .pk-wheels{
+    position:relative;display:flex;align-items:stretch;justify-content:center;gap:0;
+    height:200px;background:var(--surface2);border:1px solid var(--border);
+    border-radius:12px;overflow:hidden;
+  }
+  /* подсвеченная полоса по центру — «окошко» барабана */
+  .pk-wheels::before{
+    content:'';position:absolute;left:8px;right:8px;top:80px;height:40px;
+    background:rgba(108,140,255,.14);border-radius:9px;pointer-events:none;z-index:1;
+  }
+  /* затемнение сверху и снизу, чтобы края уходили в тень */
+  .pk-wheels::after{
+    content:'';position:absolute;inset:0;pointer-events:none;z-index:3;
+    background:linear-gradient(var(--surface2),rgba(30,34,45,0) 38%,rgba(30,34,45,0) 62%,var(--surface2));
+  }
+  .pk-wheel{
+    flex:0 1 90px;min-width:0;height:100%;overflow-y:scroll;position:relative;z-index:2;
+    scroll-snap-type:y mandatory;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .pk-wheel::-webkit-scrollbar{display:none;}
+  .pk-wheel-pad{height:80px;}   /* пустое место сверху/снизу, чтобы крайние значения доходили до центра */
+  .pk-item{
+    height:40px;display:flex;align-items:center;justify-content:center;
+    scroll-snap-align:center;
+    font-size:21px;font-variant-numeric:tabular-nums;
+    color:var(--muted);opacity:.45;
+    transition:color .12s,opacity .12s,font-weight .12s;
+    cursor:pointer;user-select:none;
+  }
+  .pk-item.active{color:var(--text);opacity:1;font-weight:600;}
+  .pk-colon{
+    display:flex;align-items:center;justify-content:center;width:14px;
+    font-size:21px;font-weight:600;color:var(--text);position:relative;z-index:2;
+  }
+  .pk-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;justify-content:center;}
+  .pk-preset{
+    background:var(--surface2);border:1px solid var(--border);color:var(--muted);
+    padding:6px 11px;border-radius:20px;font-size:12.5px;
+    font-variant-numeric:tabular-nums;
+  }
+  .pk-preset:hover{color:var(--accent);border-color:var(--accent-dim);filter:none;}
   .field-row{display:flex;gap:10px;}
   .field-row .field{flex:1;min-width:0;}
   .field-row .field input{max-width:100%;}
@@ -369,11 +503,17 @@
     <div class="field-row">
       <div class="field">
         <label>Дата</label>
-        <input type="date" id="lessonDateInput">
+        <button type="button" class="picker-field" id="lessonDateField" onclick="openDatePicker()">
+          <span class="pf-value empty" id="lessonDateValueText">Выбрать</span>
+          <span class="pf-icon">▾</span>
+        </button>
       </div>
       <div class="field">
         <label>Время</label>
-        <input type="time" id="lessonTimeInput">
+        <button type="button" class="picker-field" id="lessonTimeField" onclick="openTimePicker()">
+          <span class="pf-value empty" id="lessonTimeValueText">Выбрать</span>
+          <span class="pf-icon">▾</span>
+        </button>
       </div>
     </div>
     <div class="field">
@@ -386,38 +526,35 @@
     </div>
 
     <div class="field" id="recurringFieldWrap">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-        <input type="checkbox" id="lessonRecurringCheckbox" style="width:auto;" onchange="document.getElementById('recurringUntilWrap').style.display=this.checked?'block':'none';">
-        Повторять каждую неделю (в этот же день и время)
+      <label class="switch-row" id="recurringSwitchRow">
+        <span class="switch">
+          <input type="checkbox" id="lessonRecurringCheckbox" onchange="onRecurringToggle(this)">
+        </span>
+        <span class="switch-text">
+          <span class="switch-title">🔁 Повторять каждую неделю</span>
+          <span class="switch-sub">Занятие будет повторяться в этот же день и время</span>
+        </span>
       </label>
-      <div id="recurringUntilWrap" style="display:none;margin-top:10px;">
-        <label>До какой даты (включительно)</label>
-        <input type="date" id="lessonRecurringUntilInput">
-      </div>
     </div>
 
     <div class="field">
       <label>Домашнее задание</label>
-      <textarea id="lessonHwInput" rows="3" placeholder="Что задано ученику"></textarea>
-      <div class="chips-row" id="hwAttachChips"></div>
-      <div class="attach-controls">
-        <button type="button" class="btn-secondary btn-sm" onclick="document.getElementById('hwFileInput').click()">+ Фото</button>
-        <input type="file" id="hwFileInput" accept="image/*" multiple style="display:none" onchange="onFileSelected('hw', this.files); this.value='';">
-        <input type="text" id="hwLinkInput" placeholder="Вставьте ссылку">
-        <button type="button" class="btn-secondary btn-sm" onclick="addLinkAttachment('hw', document.getElementById('hwLinkInput').value); document.getElementById('hwLinkInput').value='';">+ Ссылка</button>
+      <div class="smart-input" id="hwSmartInput">
+        <textarea id="lessonHwInput" rows="3" placeholder="Что задано ученику. Вставьте ссылку или фото — добавится автоматически"></textarea>
+        <button type="button" class="clip-btn" title="Прикрепить фото или файл" onclick="document.getElementById('hwFileInput').click()">📎</button>
       </div>
+      <input type="file" id="hwFileInput" multiple style="display:none" onchange="onFileSelected('hw', this.files); this.value='';">
+      <div class="chips-row" id="hwAttachChips"></div>
     </div>
 
     <div class="field">
       <label>Решение (для проверки)</label>
-      <textarea id="lessonSolutionInput" rows="3" placeholder="Решение / ответы, чтобы быстро проверить"></textarea>
-      <div class="chips-row" id="solAttachChips"></div>
-      <div class="attach-controls">
-        <button type="button" class="btn-secondary btn-sm" onclick="document.getElementById('solFileInput').click()">+ Фото</button>
-        <input type="file" id="solFileInput" accept="image/*" multiple style="display:none" onchange="onFileSelected('sol', this.files); this.value='';">
-        <input type="text" id="solLinkInput" placeholder="Вставьте ссылку">
-        <button type="button" class="btn-secondary btn-sm" onclick="addLinkAttachment('sol', document.getElementById('solLinkInput').value); document.getElementById('solLinkInput').value='';">+ Ссылка</button>
+      <div class="smart-input" id="solSmartInput">
+        <textarea id="lessonSolutionInput" rows="3" placeholder="Решение / ответы. Вставьте ссылку или фото — добавится автоматически"></textarea>
+        <button type="button" class="clip-btn" title="Прикрепить фото или файл" onclick="document.getElementById('solFileInput').click()">📎</button>
       </div>
+      <input type="file" id="solFileInput" multiple style="display:none" onchange="onFileSelected('sol', this.files); this.value='';">
+      <div class="chips-row" id="solAttachChips"></div>
     </div>
 
     <div class="modal-actions">
@@ -436,18 +573,13 @@
       <input type="text" id="materialTitleInput" placeholder="Например, Конспект по теме">
     </div>
     <div class="field">
-      <label>Текст</label>
-      <textarea id="materialTextInput" rows="4" placeholder="Заметки, план занятия, объяснение темы..."></textarea>
-    </div>
-    <div class="field">
-      <label>Файлы / фото / ссылки</label>
-      <div class="chips-row" id="matAttachChips"></div>
-      <div class="attach-controls">
-        <button type="button" class="btn-secondary btn-sm" onclick="document.getElementById('matFileInput').click()">+ Файл/фото</button>
-        <input type="file" id="matFileInput" multiple style="display:none" onchange="onFileSelected('mat', this.files); this.value='';">
-        <input type="text" id="matLinkInput" placeholder="Вставьте ссылку">
-        <button type="button" class="btn-secondary btn-sm" onclick="addLinkAttachment('mat', document.getElementById('matLinkInput').value); document.getElementById('matLinkInput').value='';">+ Ссылка</button>
+      <label>Текст, ссылки, фото и файлы</label>
+      <div class="smart-input" id="matSmartInput">
+        <textarea id="materialTextInput" rows="4" placeholder="Заметки, план занятия, объяснение темы. Вставьте ссылку или фото — добавится автоматически"></textarea>
+        <button type="button" class="clip-btn" title="Прикрепить фото или файл" onclick="document.getElementById('matFileInput').click()">📎</button>
       </div>
+      <input type="file" id="matFileInput" multiple style="display:none" onchange="onFileSelected('mat', this.files); this.value='';">
+      <div class="chips-row" id="matAttachChips"></div>
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('materialModalOverlay')">Отмена</button>
@@ -475,11 +607,52 @@
 <div class="modal-overlay" id="seriesDeleteModalOverlay">
   <div class="modal">
     <h3>Это повторяющееся занятие</h3>
-    <p class="muted-note" style="margin-top:-8px;">Удалить только это занятие или это и все последующие в серии?</p>
+    <p class="muted-note" style="margin-top:-8px;">Что сделать с этим занятием?</p>
     <div class="modal-actions" style="justify-content:stretch;flex-direction:column;gap:8px;">
-      <button class="btn-secondary" onclick="deleteLessonOnly()">Удалить только это</button>
-      <button class="btn-danger" onclick="deleteLessonSeries()">Удалить это и все будущие</button>
+      <button class="btn-secondary" onclick="rescheduleLessonFromSeries()">📅 Перенести это занятие</button>
+      <button class="btn-secondary" onclick="deleteLessonOnly()">🗑 Удалить только это занятие</button>
+      <button class="btn-danger" onclick="deleteLessonSeries()">🔁 Удалить повторение (это и все будущие)</button>
       <button class="btn-ghost" onclick="pendingDeleteLessonId=null; closeModal('seriesDeleteModalOverlay')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- DATE PICKER -->
+<div class="picker-overlay" id="datePickerOverlay" onclick="if(event.target===this) closeDatePicker()">
+  <div class="picker-card">
+    <div class="picker-head">
+      <span class="pk-title" id="pkMonthLabel"></span>
+      <span class="picker-nav">
+        <button type="button" onclick="pickerMonthShift(-1)" title="Предыдущий месяц">‹</button>
+        <button type="button" onclick="pickerMonthShift(1)" title="Следующий месяц">›</button>
+      </span>
+    </div>
+    <div class="pk-weekdays">
+      <span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>вс</span>
+    </div>
+    <div class="pk-grid" id="pkGrid"></div>
+    <div class="pk-actions">
+      <button type="button" class="btn-ghost" onclick="closeDatePicker()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- TIME PICKER -->
+<div class="picker-overlay" id="timePickerOverlay" onclick="if(event.target===this) closeTimePicker()">
+  <div class="picker-card">
+    <div class="picker-head">
+      <span class="pk-title">Время занятия</span>
+      <span class="pk-title" id="pkTimePreview" style="color:var(--accent);"></span>
+    </div>
+    <div class="pk-wheels">
+      <div class="pk-wheel" id="pkHours"></div>
+      <div class="pk-colon">:</div>
+      <div class="pk-wheel" id="pkMinutes"></div>
+    </div>
+    <div class="pk-presets" id="pkPresets"></div>
+    <div class="pk-actions">
+      <button type="button" class="btn-primary" onclick="applyTimePicker()">Готово</button>
+      <button type="button" class="btn-ghost" onclick="clearTimePicker()">Очистить</button>
     </div>
   </div>
 </div>
@@ -502,25 +675,24 @@
   <div class="modal">
     <h3>Настройки</h3>
     <div class="field">
-      <label>API-ключ Anthropic (хранится только в этом браузере)</label>
+      <label>Сервис ИИ-ассистента</label>
+      <select id="providerSelect" onchange="onProviderChange()"></select>
+    </div>
+    <div class="field" id="customBaseUrlWrap" style="display:none;">
+      <label>Адрес API</label>
+      <input type="text" id="customBaseUrlInput" placeholder="https://api.example.com/v1">
+      <div class="muted-note" style="margin-top:6px;">Адрес до <code>/chat/completions</code>. Например, для Ollama: <code>http://localhost:11434/v1</code></div>
+    </div>
+    <div class="field">
+      <label id="apiKeyLabel">API-ключ (хранится только на вашем устройстве)</label>
       <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
     </div>
     <div class="field">
-      <label>Модель для ИИ-ассистента</label>
-      <select id="modelSelect">
-        <option value="claude-sonnet-5">Claude Sonnet 5 (рекомендуется)</option>
-        <option value="claude-opus-4-8">Claude Opus 4.8 (мощнее, дороже)</option>
-        <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (быстрее и дешевле)</option>
-      </select>
+      <label>Модель</label>
+      <input type="text" id="modelInput" placeholder="claude-sonnet-5">
     </div>
-    <div class="muted-note">Ключ используется для запросов прямо из браузера к api.anthropic.com. Никуда, кроме Anthropic, не отправляется.</div>
+    <div class="muted-note" id="providerNote">Ключ отправляется напрямую из вашего браузера в выбранный сервис. Больше никуда он не передаётся.</div>
     <div class="muted-note" id="cloudNote" style="margin-top:8px;display:none;">Приложение открыто в Telegram: данные синхронизируются через облако Telegram и видны на всех ваших устройствах. Место ограничено (~4 МБ) — для больших фото и файлов лучше добавлять ссылку, а не загружать сам файл.</div>
-
-    <div class="field" style="margin-top:18px;">
-      <label>Адрес сервера напоминаний (необязательно)</label>
-      <input type="text" id="serverUrlInput" placeholder="https://ваш-сервер.onrender.com">
-    </div>
-    <div class="muted-note">Если завели сервер напоминаний — вставьте его адрес (корень сайта, без /api/... на конце). Тогда бот сам напишет вам в Telegram за час до занятия и напомнит проверить ДЗ, если оно осталось непроверенным сутки.</div>
 
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('settingsModalOverlay')">Отмена</button>
@@ -532,6 +704,23 @@
 <script>
 const STORAGE_KEY = 'tutorDiaryData_v1';
 const COLORS = ['#6c8cff','#3ecf8e','#f2b84b','#ef5b5b','#c084fc','#45c4b0','#f472b6','#60a5fa'];
+
+/* ===================== НАПОМИНАНИЯ (необязательно) =====================
+   Чтобы бот сам напоминал о занятиях и о непроверенном ДЗ, заведите бесплатный
+   проект на supabase.com и вставьте сюда два значения со страницы
+   Project Settings → Data API. Подробная инструкция — в файле supabase/README.md.
+
+   Если оставить пустыми, приложение работает как обычно, просто без напоминаний. */
+const SUPABASE_URL = 'https://vlwpniiubzdmwduwiizn.supabase.co';
+
+// Публичный ключ (Settings → API Keys → Publishable key).
+// Скрывать его не нужно. Ключ sb_secret_ сюда вставлять НЕЛЬЗЯ.
+const SUPABASE_ANON_KEY = 'sb_publishable_5O8013PLy1De0E24NQQqGQ_0WEVAkvK';
+
+// Имя функции синхронизации — то, что стоит в конце её адреса
+// в списке Edge Functions.
+const SUPABASE_SYNC_FUNCTION = 'hyper-handler';
+/* ====================================================================== */
 
 const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 const USE_CLOUD = !!(tg && tg.initData && tg.initData.length > 0 && tg.CloudStorage);
@@ -550,6 +739,73 @@ let currentDayDate = null;
 let calCursor = new Date(); calCursor.setDate(1);
 
 let drafts = { hw: [], sol: [], mat: [] };
+
+/* ---------- ПОДДЕРЖИВАЕМЫЕ ИИ-СЕРВИСЫ ----------
+   api: 'anthropic' | 'gemini' | 'openai' (openai = формат OpenAI, его понимают
+   почти все сервисы: DeepSeek, OpenRouter, Groq, Mistral, локальные модели…). */
+const AI_PROVIDERS = {
+  anthropic: {
+    label: 'Anthropic (Claude)',
+    api: 'anthropic',
+    keyPlaceholder: 'sk-ant-...',
+    modelPlaceholder: 'claude-sonnet-5',
+    keyHelp: 'Ключ создаётся на console.anthropic.com → API Keys.'
+  },
+  openai: {
+    label: 'OpenAI (ChatGPT)',
+    api: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    keyPlaceholder: 'sk-...',
+    modelPlaceholder: 'gpt-4o',
+    keyHelp: 'Ключ создаётся на platform.openai.com → API keys.'
+  },
+  gemini: {
+    label: 'Google (Gemini)',
+    api: 'gemini',
+    keyPlaceholder: 'AIza...',
+    modelPlaceholder: 'gemini-2.5-flash',
+    keyHelp: 'Ключ создаётся бесплатно на aistudio.google.com → Get API key.'
+  },
+  deepseek: {
+    label: 'DeepSeek',
+    api: 'openai',
+    baseUrl: 'https://api.deepseek.com/v1',
+    keyPlaceholder: 'sk-...',
+    modelPlaceholder: 'deepseek-chat',
+    keyHelp: 'Ключ создаётся на platform.deepseek.com → API keys.'
+  },
+  openrouter: {
+    label: 'OpenRouter (доступ к сотням моделей)',
+    api: 'openai',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    keyPlaceholder: 'sk-or-...',
+    modelPlaceholder: 'openai/gpt-4o',
+    keyHelp: 'Ключ создаётся на openrouter.ai → Keys. Через него доступны модели почти всех сервисов сразу.'
+  },
+  groq: {
+    label: 'Groq (очень быстрый)',
+    api: 'openai',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    keyPlaceholder: 'gsk_...',
+    modelPlaceholder: 'llama-3.3-70b-versatile',
+    keyHelp: 'Ключ создаётся бесплатно на console.groq.com → API Keys.'
+  },
+  mistral: {
+    label: 'Mistral',
+    api: 'openai',
+    baseUrl: 'https://api.mistral.ai/v1',
+    keyPlaceholder: 'Ваш ключ',
+    modelPlaceholder: 'mistral-large-latest',
+    keyHelp: 'Ключ создаётся на console.mistral.ai → API Keys.'
+  },
+  custom: {
+    label: 'Другой сервис (свой адрес)',
+    api: 'openai',
+    keyPlaceholder: 'Ваш ключ',
+    modelPlaceholder: 'Название модели',
+    keyHelp: 'Подойдёт любой сервис с API в формате OpenAI — включая локальные модели (Ollama, LM Studio).'
+  }
+};
 
 function loadLocal(){
   try{
@@ -693,14 +949,20 @@ async function init(){
 
 function normalize(){
   if(!data.students) data.students = [];
-  if(!data.settings) data.settings = { apiKey:'', model:'claude-sonnet-5', serverUrl:'' };
-  if(data.settings.apiKey === undefined) data.settings.apiKey = '';
-  if(!data.settings.model) data.settings.model = 'claude-sonnet-5';
-  if(data.settings.serverUrl === undefined) data.settings.serverUrl = '';
-  // migrate from the old field (used to store the full .../api/sync URL)
-  if(!data.settings.serverUrl && data.settings.reminderApiUrl){
-    data.settings.serverUrl = data.settings.reminderApiUrl.replace(/\/api\/sync\/?$/,'').replace(/\/+$/,'');
-  }
+  if(!data.settings) data.settings = {};
+  const st = data.settings;
+  if(!st.provider) st.provider = 'anthropic';
+  if(!st.apiKeys) st.apiKeys = {};
+  if(!st.models) st.models = {};
+  if(st.customBaseUrl === undefined) st.customBaseUrl = '';
+  // Переезд со старых настроек, где был только Anthropic
+  if(st.apiKey && !st.apiKeys.anthropic) st.apiKeys.anthropic = st.apiKey;
+  if(st.model && !st.models.anthropic) st.models.anthropic = st.model;
+  if(!st.models.anthropic) st.models.anthropic = 'claude-sonnet-5';
+  Object.keys(AI_PROVIDERS).forEach(p=>{
+    if(st.apiKeys[p] === undefined) st.apiKeys[p] = '';
+    if(st.models[p] === undefined) st.models[p] = '';
+  });
   data.students.forEach(s=>{
     if(!s.materials) s.materials = [];
     if(!s.chat) s.chat = [];
@@ -852,6 +1114,61 @@ function addLinkAttachment(key, url){
   drafts[key].push({ id: uid(), kind:'link', url: clean, name: label });
   renderAttachmentChips(key);
 }
+/* Умное поле: вставленные ссылки, фото и файлы распознаются автоматически.
+   Обычный текст остаётся текстом. */
+const URL_RE = /^(https?:\/\/|www\.)[^\s]+$/i;
+
+function setupSmartInput(key, wrapId, textareaId){
+  const wrap = document.getElementById(wrapId);
+  const ta = document.getElementById(textareaId);
+  if(!wrap || !ta || wrap.dataset.smartReady) return;
+  wrap.dataset.smartReady = '1';
+
+  // Вставка из буфера: картинка/файл → вложение, ссылка → вложение-ссылка
+  ta.addEventListener('paste', e=>{
+    const cd = e.clipboardData;
+    if(!cd) return;
+    const files = Array.from(cd.files || []);
+    if(files.length){
+      e.preventDefault();
+      onFileSelected(key, files);
+      return;
+    }
+    const text = (cd.getData('text/plain') || '').trim();
+    if(text && URL_RE.test(text)){
+      e.preventDefault();
+      addLinkAttachment(key, text);
+    }
+  });
+
+  // Перетаскивание файлов прямо в поле
+  ta.addEventListener('dragover', e=>{ e.preventDefault(); wrap.classList.add('dragover'); });
+  ta.addEventListener('dragleave', ()=> wrap.classList.remove('dragover'));
+  ta.addEventListener('drop', e=>{
+    wrap.classList.remove('dragover');
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if(files.length){ e.preventDefault(); onFileSelected(key, files); }
+  });
+
+  // Если ссылку набрали руками — превращаем её во вложение по Enter или при уходе из поля
+  const extractTrailingUrl = ()=>{
+    const lines = ta.value.split('\n');
+    const last = (lines[lines.length-1] || '').trim();
+    if(last && URL_RE.test(last)){
+      lines.pop();
+      ta.value = lines.join('\n').replace(/\n+$/,'');
+      addLinkAttachment(key, last);
+    }
+  };
+  ta.addEventListener('keydown', e=>{
+    if(e.key === 'Enter' && !e.shiftKey){
+      const lines = ta.value.split('\n');
+      const last = (lines[lines.length-1] || '').trim();
+      if(last && URL_RE.test(last)){ e.preventDefault(); extractTrailingUrl(); }
+    }
+  });
+  ta.addEventListener('blur', extractTrailingUrl);
+}
 function removeAttachment(key, id){
   drafts[key] = drafts[key].filter(a=>a.id!==id);
   renderAttachmentChips(key);
@@ -860,7 +1177,7 @@ function renderAttachmentChips(key){
   const c = document.getElementById(key+'AttachChips');
   if(!c) return;
   if(!drafts[key] || drafts[key].length===0){
-    c.innerHTML = '<span class="muted-note">Нет вложений</span>';
+    c.innerHTML = '';
     return;
   }
   c.innerHTML = drafts[key].map(a=>{
@@ -1025,14 +1342,191 @@ function removeStudent(id, evt){
   renderGrid();
 }
 
+/* ---------- СВОИ ВЫБОРЩИКИ ДАТЫ И ВРЕМЕНИ ----------
+   Системные (input type=date/time) выглядят по-разному в каждом браузере и
+   не поддаются стилизации, поэтому нарисованы свои — в стиле приложения. */
+let pickedDate = '';   // 'YYYY-MM-DD' или ''
+let pickedTime = '';   // 'HH:MM' или ''
+let pkCursor = new Date();
+let pkHour = null, pkMinute = null;
+
+function setPickedDate(value){
+  pickedDate = value || '';
+  const el = document.getElementById('lessonDateValueText');
+  el.textContent = pickedDate ? formatDate(pickedDate) : 'Выбрать';
+  el.classList.toggle('empty', !pickedDate);
+}
+function setPickedTime(value){
+  pickedTime = value || '';
+  const el = document.getElementById('lessonTimeValueText');
+  el.textContent = pickedTime || 'Выбрать';
+  el.classList.toggle('empty', !pickedTime);
+}
+
+/* --- дата --- */
+function openDatePicker(){
+  const base = pickedDate ? new Date(pickedDate + 'T00:00:00') : new Date();
+  pkCursor = new Date(base.getFullYear(), base.getMonth(), 1);
+  renderDatePicker();
+  document.getElementById('datePickerOverlay').classList.add('open');
+}
+function closeDatePicker(){
+  document.getElementById('datePickerOverlay').classList.remove('open');
+}
+function pickerMonthShift(delta){
+  pkCursor = new Date(pkCursor.getFullYear(), pkCursor.getMonth() + delta, 1);
+  renderDatePicker();
+}
+function renderDatePicker(){
+  const y = pkCursor.getFullYear(), m = pkCursor.getMonth();
+  const label = pkCursor.toLocaleDateString('ru-RU', { month:'long', year:'numeric' });
+  document.getElementById('pkMonthLabel').textContent = label;
+
+  const firstWeekday = (new Date(y, m, 1).getDay() + 6) % 7; // понедельник = 0
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const daysPrev = new Date(y, m, 0).getDate();
+  const today = todayStr();
+
+  let cells = '';
+  for(let i = firstWeekday; i > 0; i--){
+    cells += `<button type="button" class="pk-day other" onclick="pickDate('${toDateStr(y, m-1, daysPrev-i+1)}')">${daysPrev-i+1}</button>`;
+  }
+  for(let d = 1; d <= daysInMonth; d++){
+    const ds = toDateStr(y, m, d);
+    const cls = ['pk-day'];
+    if(ds === today) cls.push('today');
+    if(ds === pickedDate) cls.push('selected');
+    cells += `<button type="button" class="${cls.join(' ')}" onclick="pickDate('${ds}')">${d}</button>`;
+  }
+  const tail = (7 - ((firstWeekday + daysInMonth) % 7)) % 7;
+  for(let d = 1; d <= tail; d++){
+    cells += `<button type="button" class="pk-day other" onclick="pickDate('${toDateStr(y, m+1, d)}')">${d}</button>`;
+  }
+  document.getElementById('pkGrid').innerHTML = cells;
+}
+function pickDate(ds){
+  setPickedDate(ds);
+  closeDatePicker();
+}
+/* --- время: барабаны, как в iPhone --- */
+const TIME_PRESETS = ['09:00','10:00','12:00','14:00','16:00','18:00','19:00','20:00'];
+const WHEEL_ITEM_H = 40;          // высота строки, совпадает с .pk-item в стилях
+const MINUTE_STEP = 5;
+
+const HOURS = Array.from({length:24}, (_,h)=>h);
+const MINUTES = Array.from({length:60/MINUTE_STEP}, (_,i)=>i*MINUTE_STEP);
+
+let wheelsReady = false;
+let wheelScrollTimers = {};
+
+function buildWheel(id, values, onSettle){
+  const el = document.getElementById(id);
+  el.innerHTML = '<div class="pk-wheel-pad"></div>'
+    + values.map((v,i)=>`<div class="pk-item" data-i="${i}">${String(v).padStart(2,'0')}</div>`).join('')
+    + '<div class="pk-wheel-pad"></div>';
+
+  // тап по значению — плавно доводим его до центра
+  el.querySelectorAll('.pk-item').forEach(item=>{
+    item.addEventListener('click', ()=>{
+      scrollWheelTo(el, parseInt(item.dataset.i,10), true);
+    });
+  });
+
+  // пока крутится — подсвечиваем центральное; когда остановилось — фиксируем выбор
+  el.addEventListener('scroll', ()=>{
+    highlightWheel(el);
+    clearTimeout(wheelScrollTimers[id]);
+    wheelScrollTimers[id] = setTimeout(()=>{
+      const idx = wheelIndex(el);
+      onSettle(values[idx]);
+      updateTimePreview();
+    }, 90);
+  });
+}
+function wheelIndex(el){
+  return Math.max(0, Math.round(el.scrollTop / WHEEL_ITEM_H));
+}
+function highlightWheel(el){
+  const idx = wheelIndex(el);
+  el.querySelectorAll('.pk-item').forEach((item,i)=>{
+    item.classList.toggle('active', i === idx);
+  });
+}
+function scrollWheelTo(el, index, smooth){
+  el.scrollTo({ top: index * WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
+  // подсветку ставим сразу, не дожидаясь конца прокрутки
+  el.querySelectorAll('.pk-item').forEach((item,i)=> item.classList.toggle('active', i === index));
+}
+function updateTimePreview(){
+  document.getElementById('pkTimePreview').textContent =
+    pkHour === null ? '' : `${String(pkHour).padStart(2,'0')}:${String(pkMinute||0).padStart(2,'0')}`;
+}
+
+function openTimePicker(){
+  if(pickedTime){
+    const [h, mi] = pickedTime.split(':');
+    pkHour = parseInt(h, 10);
+    pkMinute = parseInt(mi, 10);
+  } else {
+    const now = new Date();
+    pkHour = now.getHours();
+    pkMinute = 0;
+  }
+  // округляем минуты до ближайшего шага барабана
+  pkMinute = Math.round(pkMinute / MINUTE_STEP) * MINUTE_STEP % 60;
+
+  if(!wheelsReady){
+    buildWheel('pkHours', HOURS, v=>{ pkHour = v; });
+    buildWheel('pkMinutes', MINUTES, v=>{ pkMinute = v; });
+    document.getElementById('pkPresets').innerHTML = TIME_PRESETS
+      .map(t=>`<button type="button" class="pk-preset" onclick="pickTimePreset('${t}')">${t}</button>`).join('');
+    wheelsReady = true;
+  }
+
+  updateTimePreview();
+  document.getElementById('timePickerOverlay').classList.add('open');
+
+  // выставляем барабаны только после показа: у скрытого элемента прокрутка не работает
+  requestAnimationFrame(()=>{
+    scrollWheelTo(document.getElementById('pkHours'), HOURS.indexOf(pkHour), false);
+    scrollWheelTo(document.getElementById('pkMinutes'), MINUTES.indexOf(pkMinute), false);
+  });
+}
+function closeTimePicker(){
+  document.getElementById('timePickerOverlay').classList.remove('open');
+}
+function pickTimePreset(t){
+  const [h, mi] = t.split(':');
+  pkHour = parseInt(h, 10);
+  pkMinute = parseInt(mi, 10);
+  scrollWheelTo(document.getElementById('pkHours'), HOURS.indexOf(pkHour), true);
+  scrollWheelTo(document.getElementById('pkMinutes'), MINUTES.indexOf(pkMinute), true);
+  updateTimePreview();
+}
+function applyTimePicker(){
+  // берём то, что реально стоит в центре барабанов
+  pkHour = HOURS[wheelIndex(document.getElementById('pkHours'))];
+  pkMinute = MINUTES[wheelIndex(document.getElementById('pkMinutes'))];
+  setPickedTime(`${String(pkHour).padStart(2,'0')}:${String(pkMinute).padStart(2,'0')}`);
+  closeTimePicker();
+}
+function clearTimePicker(){
+  setPickedTime('');
+  closeTimePicker();
+}
+
 /* ---------- LESSON CRUD ---------- */
+function onRecurringToggle(cb){
+  const row = document.getElementById('recurringSwitchRow');
+  if(row) row.classList.toggle('on', cb.checked);
+}
 function openLessonModal(id, prefillDate){
   editingLessonId = id || null;
   const s = getCurrentStudent();
   const l = id ? s.lessons.find(x=>x.id===id) : null;
   document.getElementById('lessonModalTitle').textContent = l ? 'Изменить занятие' : 'Новое занятие';
-  document.getElementById('lessonDateInput').value = l ? (l.date||'') : (prefillDate || todayStr());
-  document.getElementById('lessonTimeInput').value = l ? (l.time||'') : '';
+  setPickedDate(l ? (l.date||'') : (prefillDate || todayStr()));
+  setPickedTime(l ? (l.time||'') : '');
   document.getElementById('lessonTopicInput').value = l ? (l.topic||'') : '';
   document.getElementById('lessonPriceInput').value = l && l.price ? l.price : '';
   document.getElementById('lessonHwInput').value = l ? (l.homework||'') : '';
@@ -1042,19 +1536,21 @@ function openLessonModal(id, prefillDate){
   drafts.sol = l ? JSON.parse(JSON.stringify(l.solutionAttachments||[])) : [];
   renderAttachmentChips('hw');
   renderAttachmentChips('sol');
+  setupSmartInput('hw', 'hwSmartInput', 'lessonHwInput');
+  setupSmartInput('sol', 'solSmartInput', 'lessonSolutionInput');
 
   // Recurrence only makes sense when creating a brand-new lesson
   document.getElementById('recurringFieldWrap').style.display = l ? 'none' : 'block';
-  document.getElementById('lessonRecurringCheckbox').checked = false;
-  document.getElementById('recurringUntilWrap').style.display = 'none';
-  document.getElementById('lessonRecurringUntilInput').value = '';
+  const recCb = document.getElementById('lessonRecurringCheckbox');
+  recCb.checked = false;
+  onRecurringToggle(recCb);
 
   openModal('lessonModalOverlay');
 }
 function saveLesson(){
   const s = getCurrentStudent();
-  const date = document.getElementById('lessonDateInput').value;
-  const time = document.getElementById('lessonTimeInput').value;
+  const date = pickedDate;
+  const time = pickedTime;
   const topic = document.getElementById('lessonTopicInput').value.trim();
   const priceRaw = document.getElementById('lessonPriceInput').value.replace(/[^\d]/g,'');
   const price = priceRaw ? parseInt(priceRaw, 10) : 0;
@@ -1066,16 +1562,16 @@ function saveLesson(){
     Object.assign(l, { date, time, topic, price, homework, solution, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol });
   } else {
     const isRecurring = document.getElementById('lessonRecurringCheckbox').checked;
-    const untilStr = document.getElementById('lessonRecurringUntilInput').value;
 
-    if(isRecurring && date && untilStr && untilStr >= date){
+    if(isRecurring && date){
+      // Создаём занятия на год вперёд. Не нужную часть серии всегда можно
+      // убрать через "Удалить повторение (это и все будущие)".
       const recurrenceId = uid();
       const startDate = new Date(date + 'T00:00:00');
-      const untilDate = new Date(untilStr + 'T00:00:00');
-      const MAX_OCCURRENCES = 52; // safety cap (about a year of weekly lessons)
+      const OCCURRENCES = 52; // примерно год еженедельных занятий
       let cursor = new Date(startDate);
       let count = 0;
-      while(cursor <= untilDate && count < MAX_OCCURRENCES){
+      while(count < OCCURRENCES){
         const occDate = toDateStr(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
         s.lessons.push({
           id: uid(), date: occDate, time, topic, price, homework, solution,
@@ -1114,6 +1610,12 @@ function removeLesson(id){
   s.lessons = s.lessons.filter(x=>x.id!==id);
   save();
   renderDetail();
+}
+function rescheduleLessonFromSeries(){
+  const id = pendingDeleteLessonId;
+  pendingDeleteLessonId = null;
+  closeModal('seriesDeleteModalOverlay');
+  if(id) openLessonModal(id);
 }
 function deleteLessonOnly(){
   const s = getCurrentStudent();
@@ -1314,6 +1816,7 @@ function openMaterialModal(id){
   document.getElementById('materialTextInput').value = m ? (m.text||'') : '';
   drafts.mat = m ? JSON.parse(JSON.stringify(m.attachments||[])) : [];
   renderAttachmentChips('mat');
+  setupSmartInput('mat', 'matSmartInput', 'materialTextInput');
   openModal('materialModalOverlay');
 }
 function saveMaterial(){
@@ -1373,9 +1876,75 @@ function showChatThinking(on){
     if(existing) existing.remove();
   }
 }
+/* Один запрос к выбранному ИИ-сервису. Возвращает текст ответа. */
+async function callAiProvider(cfg, systemPrompt, msgs){
+  if(cfg.api === 'anthropic'){
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': cfg.key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: msgs.map(m=>({ role: m.role, content: m.text }))
+      })
+    });
+    const json = await resp.json();
+    if(!resp.ok) throw new Error((json.error && json.error.message) || `Ошибка API (${resp.status})`);
+    return (json.content || []).map(c=>c.text||'').join('');
+  }
+
+  if(cfg.api === 'gemini'){
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent?key=${encodeURIComponent(cfg.key)}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: msgs.map(m=>({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.text }]
+        }))
+      })
+    });
+    const json = await resp.json();
+    if(!resp.ok) throw new Error((json.error && json.error.message) || `Ошибка API (${resp.status})`);
+    const cand = (json.candidates && json.candidates[0]) || null;
+    return cand ? (cand.content.parts || []).map(p=>p.text||'').join('') : '';
+  }
+
+  // Формат OpenAI — его понимают DeepSeek, OpenRouter, Groq, Mistral, Ollama и др.
+  const base = cfg.baseUrl;
+  if(!base) throw new Error('Не указан адрес API в настройках.');
+
+  const resp = await fetch(base.replace(/\/+$/,'') + '/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': 'Bearer ' + cfg.key
+    },
+    body: JSON.stringify({
+      model: cfg.model,
+      max_tokens: 1024,
+      messages: [{ role:'system', content: systemPrompt }]
+        .concat(msgs.map(m=>({ role: m.role, content: m.text })))
+    })
+  });
+  const json = await resp.json();
+  if(!resp.ok) throw new Error((json.error && json.error.message) || `Ошибка API (${resp.status})`);
+  const choice = (json.choices && json.choices[0]) || null;
+  return choice ? (choice.message && choice.message.content) || '' : '';
+}
+
 async function sendChatMessage(){
-  const key = data.settings.apiKey;
-  if(!key){ alert('Сначала добавьте API-ключ Anthropic в Настройках.'); openSettingsModal(); return; }
+  const cfg = currentAiConfig();
+  if(!cfg.key){ alert('Сначала выберите сервис ИИ и добавьте API-ключ в Настройках.'); openSettingsModal(); return; }
+  if(!cfg.model){ alert('Укажите модель в Настройках.'); openSettingsModal(); return; }
 
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
@@ -1410,29 +1979,10 @@ ${lessonsContext || 'Занятий пока нет.'}
 
 Помогай составлять планы занятий, объяснять темы, придумывать задания и отвечать на вопросы преподавателя. Отвечай на русском языке, кратко и по делу.`;
 
-  const msgs = s.chat.slice(-20).map(m=>({ role: m.role, content: m.text }));
+  const msgs = s.chat.slice(-20).map(m=>({ role: m.role, text: m.text }));
 
   try{
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: data.settings.model || 'claude-sonnet-5',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: msgs
-      })
-    });
-    const json = await resp.json();
-    if(!resp.ok){
-      throw new Error((json.error && json.error.message) || `Ошибка API (${resp.status})`);
-    }
-    const answer = (json.content || []).map(c=>c.text||'').join('') || '(пустой ответ)';
+    const answer = (await callAiProvider(cfg, systemPrompt, msgs)) || '(пустой ответ)';
     s.chat.push({ role:'assistant', text: answer, ts: Date.now() });
   }catch(err){
     s.chat.push({ role:'assistant', text: '⚠ Ошибка: ' + err.message, ts: Date.now() });
@@ -1443,37 +1993,69 @@ ${lessonsContext || 'Занятий пока нет.'}
 }
 
 /* ---------- SETTINGS ---------- */
+function renderProviderFields(provider){
+  const cfg = AI_PROVIDERS[provider] || AI_PROVIDERS.anthropic;
+
+  const keyInput = document.getElementById('apiKeyInput');
+  keyInput.placeholder = cfg.keyPlaceholder;
+  keyInput.value = (data.settings.apiKeys && data.settings.apiKeys[provider]) || '';
+
+  const modelInput = document.getElementById('modelInput');
+  modelInput.placeholder = cfg.modelPlaceholder;
+  modelInput.value = (data.settings.models && data.settings.models[provider]) || '';
+
+  document.getElementById('providerNote').textContent =
+    cfg.keyHelp + ' Ключ отправляется напрямую из вашего браузера в выбранный сервис — больше никуда он не передаётся.';
+
+  document.getElementById('customBaseUrlWrap').style.display = cfg.baseUrl ? 'none' : (cfg.api === 'openai' ? 'block' : 'none');
+  document.getElementById('customBaseUrlInput').value = data.settings.customBaseUrl || '';
+}
+function onProviderChange(){
+  renderProviderFields(document.getElementById('providerSelect').value);
+}
 function openSettingsModal(){
-  document.getElementById('apiKeyInput').value = data.settings.apiKey || '';
-  document.getElementById('modelSelect').value = data.settings.model || 'claude-sonnet-5';
-  document.getElementById('serverUrlInput').value = data.settings.serverUrl || '';
+  const provider = data.settings.provider || 'anthropic';
+  const sel = document.getElementById('providerSelect');
+  sel.innerHTML = Object.keys(AI_PROVIDERS)
+    .map(k=>`<option value="${k}">${escapeHtml(AI_PROVIDERS[k].label)}</option>`).join('');
+  sel.value = provider;
+  renderProviderFields(provider);
   openModal('settingsModalOverlay');
 }
 function saveSettings(){
-  data.settings.apiKey = document.getElementById('apiKeyInput').value.trim();
-  data.settings.model = document.getElementById('modelSelect').value;
-  data.settings.serverUrl = document.getElementById('serverUrlInput').value.trim().replace(/\/+$/,'');
+  const provider = document.getElementById('providerSelect').value;
+  data.settings.provider = provider;
+  data.settings.apiKeys[provider] = document.getElementById('apiKeyInput').value.trim();
+  data.settings.models[provider] = document.getElementById('modelInput').value.trim();
+  const cfg = AI_PROVIDERS[provider];
+  if(cfg && !cfg.baseUrl && cfg.api === 'openai'){
+    data.settings.customBaseUrl = document.getElementById('customBaseUrlInput').value.trim().replace(/\/+$/,'');
+  }
   save();
   closeModal('settingsModalOverlay');
-  syncReminders();
 }
-function serverEndpoint(path){
-  const base = data.settings && data.settings.serverUrl;
-  if(!base) return null;
-  return base.replace(/\/+$/,'') + path;
+function currentAiConfig(){
+  const st = data.settings || {};
+  const provider = st.provider || 'anthropic';
+  const cfg = AI_PROVIDERS[provider] || AI_PROVIDERS.anthropic;
+  return {
+    api: cfg.api,
+    key: (st.apiKeys && st.apiKeys[provider]) || '',
+    model: (st.models && st.models[provider]) || '',
+    baseUrl: cfg.baseUrl || st.customBaseUrl || ''
+  };
 }
-
-/* ---------- SERVER SYNC (reminders + Google Calendar) ----------
-   Best-effort: sends a lightweight (no photos) copy of lessons to your own
-   server (see reminder-bot/), which pings you in Telegram before lessons,
-   about unchecked homework, and pushes lessons to Google Calendar if you've
-   connected it. Silently does nothing if no server URL is set, or if not
-   running inside Telegram. */
+/* ---------- НАПОМИНАНИЯ ЧЕРЕЗ SUPABASE ----------
+   Отправляет в вашу базу Supabase лёгкую копию расписания (без фото и файлов).
+   Supabase сам по расписанию присылает вам в Telegram напоминания: за час до
+   занятия и о непроверенном ДЗ. Как настроить — см. папку supabase/.
+   Если поля выше пустые, всё это просто не работает — приложение остаётся
+   полностью автономным. */
 let reminderSyncInProgress = false;
 let reminderSyncPending = false;
 async function syncReminders(){
-  const url = serverEndpoint('/api/sync');
-  if(!USE_CLOUD || !url || !tg || !tg.initData) return;
+  if(!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+  if(!USE_CLOUD || !tg || !tg.initData) return;
   if(reminderSyncInProgress){ reminderSyncPending = true; return; }
   reminderSyncInProgress = true;
   try{
@@ -1493,13 +2075,17 @@ async function syncReminders(){
         }))
       }))
     };
-    await fetch(url, {
+    await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/' + SUPABASE_SYNC_FUNCTION, {
       method:'POST',
-      headers:{'content-type':'application/json'},
+      headers:{
+        'content-type':'application/json',
+        'authorization':'Bearer ' + SUPABASE_ANON_KEY,
+        'apikey': SUPABASE_ANON_KEY
+      },
       body: JSON.stringify(payload)
     });
   }catch(e){
-    // best-effort — reminders/Google sync just won't fire until the next successful sync
+    // не критично — напоминания просто обновятся при следующем сохранении
   }
   reminderSyncInProgress = false;
   if(reminderSyncPending){ reminderSyncPending = false; syncReminders(); }
