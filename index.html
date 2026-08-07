@@ -373,6 +373,53 @@
   .modal{overflow-x:hidden;}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
 
+  /* Сегментированный выбор (длительность, дни недели, период) */
+  .seg-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .seg{
+    background:var(--surface2);border:1px solid var(--border);color:var(--muted);
+    padding:8px 13px;border-radius:8px;font-size:13px;font-weight:500;
+  }
+  .seg:hover{color:var(--text);border-color:var(--accent-dim);filter:none;}
+  .seg.on{background:var(--accent);border-color:var(--accent);color:#0b0d13;}
+
+  /* Аналитика */
+  .stats-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  .stats-period-label{font-size:15px;font-weight:600;text-transform:capitalize;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px;}
+  .kpi{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;
+  }
+  .kpi .k-label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  .kpi .k-value{font-size:24px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;}
+  .kpi .k-sub{font-size:12px;color:var(--muted);margin-top:3px;}
+  .kpi.accent .k-value{color:var(--accent);}
+  .kpi.good .k-value{color:var(--success);}
+  .kpi.warn .k-value{color:var(--warn);}
+
+  .panel{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px 18px;margin-bottom:16px;
+  }
+  .panel h4{margin:0 0 14px;font-size:13.5px;font-weight:600;}
+  .panel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;}
+
+  .load-bar{height:8px;background:var(--surface2);border-radius:5px;overflow:hidden;margin-top:8px;}
+  .load-bar span{display:block;height:100%;background:var(--accent);border-radius:5px;}
+
+  .slot-day{margin-bottom:14px;}
+  .slot-day:last-child{margin-bottom:0;}
+  .slot-day-name{font-size:12.5px;color:var(--muted);margin-bottom:6px;text-transform:capitalize;}
+  .slot-chips{display:flex;gap:6px;flex-wrap:wrap;}
+  .slot-chip{
+    background:var(--success-dim);color:var(--success);border:1px solid #2a5c46;
+    padding:5px 10px;border-radius:7px;font-size:12.5px;font-variant-numeric:tabular-nums;
+  }
+  .slot-chip.busy{background:var(--surface2);color:var(--muted);border-color:var(--border);}
+
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);}
+  .legend-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+
   .swatches{display:flex;gap:8px;flex-wrap:wrap;}
   .swatch{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;}
   .swatch.selected{border-color:var(--text);}
@@ -408,6 +455,7 @@
     <div class="tabs">
       <button class="tab active" data-view="students" onclick="switchView('students')">Ученики</button>
       <button class="tab" data-view="calendar" onclick="switchView('calendar')">Календарь</button>
+      <button class="tab" data-view="stats" onclick="switchView('stats')">Аналитика</button>
     </div>
     <div class="top-actions">
       <span id="syncStatus" class="muted-note"></span>
@@ -435,6 +483,46 @@
       <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
     </div>
     <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <!-- STATS VIEW -->
+  <div id="statsView" style="display:none;">
+    <div class="stats-toolbar">
+      <div class="seg-row" id="statsPeriodRow">
+        <button type="button" class="seg" data-period="day" onclick="setStatsPeriod('day')">День</button>
+        <button type="button" class="seg" data-period="week" onclick="setStatsPeriod('week')">Неделя</button>
+        <button type="button" class="seg" data-period="month" onclick="setStatsPeriod('month')">Месяц</button>
+      </div>
+      <div class="cal-nav">
+        <button class="btn-secondary btn-sm" onclick="statsShift(-1)">←</button>
+        <button class="btn-secondary btn-sm" onclick="statsToday()">Сейчас</button>
+        <button class="btn-secondary btn-sm" onclick="statsShift(1)">→</button>
+      </div>
+      <span class="stats-period-label" id="statsPeriodLabel"></span>
+    </div>
+
+    <div class="kpi-grid" id="statsKpis"></div>
+
+    <div class="panel">
+      <h4 id="statsChartTitle">Загруженность</h4>
+      <div id="statsLoadChart"></div>
+    </div>
+
+    <div class="panel-grid">
+      <div class="panel">
+        <h4>Свободные окна</h4>
+        <div id="statsFreeSlots"></div>
+      </div>
+      <div class="panel">
+        <h4>По ученикам</h4>
+        <div id="statsByStudent"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4>Заработок по месяцам</h4>
+      <div id="statsEarningsChart"></div>
+    </div>
   </div>
 
   <!-- DETAIL VIEW -->
@@ -514,6 +602,15 @@
           <span class="pf-value empty" id="lessonTimeValueText">Выбрать</span>
           <span class="pf-icon">▾</span>
         </button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Длительность</label>
+      <div class="seg-row" id="lessonDurationRow">
+        <button type="button" class="seg" data-dur="45" onclick="pickDuration(45)">45 мин</button>
+        <button type="button" class="seg" data-dur="60" onclick="pickDuration(60)">1 ч</button>
+        <button type="button" class="seg" data-dur="90" onclick="pickDuration(90)">1,5 ч</button>
+        <button type="button" class="seg" data-dur="120" onclick="pickDuration(120)">2 ч</button>
       </div>
     </div>
     <div class="field">
@@ -674,6 +771,42 @@
 <div class="modal-overlay" id="settingsModalOverlay">
   <div class="modal">
     <h3>Настройки</h3>
+
+    <div class="section-label" style="margin-top:0;">Рабочий график</div>
+    <div class="field-row">
+      <div class="field">
+        <label>Начало дня</label>
+        <input type="text" id="workStartInput" placeholder="10:00" maxlength="5">
+      </div>
+      <div class="field">
+        <label>Конец дня</label>
+        <input type="text" id="workEndInput" placeholder="21:00" maxlength="5">
+      </div>
+    </div>
+    <div class="field">
+      <label>Рабочие дни</label>
+      <div class="seg-row" id="workDaysRow">
+        <button type="button" class="seg" data-day="1" onclick="toggleWorkDay(1)">Пн</button>
+        <button type="button" class="seg" data-day="2" onclick="toggleWorkDay(2)">Вт</button>
+        <button type="button" class="seg" data-day="3" onclick="toggleWorkDay(3)">Ср</button>
+        <button type="button" class="seg" data-day="4" onclick="toggleWorkDay(4)">Чт</button>
+        <button type="button" class="seg" data-day="5" onclick="toggleWorkDay(5)">Пт</button>
+        <button type="button" class="seg" data-day="6" onclick="toggleWorkDay(6)">Сб</button>
+        <button type="button" class="seg" data-day="7" onclick="toggleWorkDay(7)">Вс</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Длительность занятия по умолчанию</label>
+      <div class="seg-row" id="defaultDurationRow">
+        <button type="button" class="seg" data-dur="45" onclick="pickDefaultDuration(45)">45 мин</button>
+        <button type="button" class="seg" data-dur="60" onclick="pickDefaultDuration(60)">1 ч</button>
+        <button type="button" class="seg" data-dur="90" onclick="pickDefaultDuration(90)">1,5 ч</button>
+        <button type="button" class="seg" data-dur="120" onclick="pickDefaultDuration(120)">2 ч</button>
+      </div>
+      <div class="muted-note" style="margin-top:6px;">Используется для новых занятий и для расчёта загруженности.</div>
+    </div>
+
+    <div class="section-label">ИИ-ассистент</div>
     <div class="field">
       <label>Сервис ИИ-ассистента</label>
       <select id="providerSelect" onchange="onProviderChange()"></select>
@@ -951,6 +1084,11 @@ function normalize(){
   if(!data.students) data.students = [];
   if(!data.settings) data.settings = {};
   const st = data.settings;
+  // Рабочий день и длительность занятия — нужны для статистики и свободных окон
+  if(!st.defaultDuration) st.defaultDuration = 60;
+  if(!st.workStart) st.workStart = '10:00';
+  if(!st.workEnd) st.workEnd = '21:00';
+  if(!Array.isArray(st.workDays)) st.workDays = [1,2,3,4,5,6]; // 1=пн … 7=вс
   if(!st.provider) st.provider = 'anthropic';
   if(!st.apiKeys) st.apiKeys = {};
   if(!st.models) st.models = {};
@@ -970,6 +1108,7 @@ function normalize(){
       if(l.paid === undefined) l.paid = false;
       if(l.price === undefined || l.price === null) l.price = 0;
       if(l.recurrenceId === undefined) l.recurrenceId = null;
+      if(!l.duration) l.duration = st.defaultDuration; // старым занятиям — длительность по умолчанию
       if(!l.homeworkAttachments) l.homeworkAttachments = [];
       if(!l.solutionAttachments) l.solutionAttachments = [];
     });
@@ -1025,6 +1164,7 @@ function payLabel(l){
 function hideAllViews(){
   document.getElementById('listView').style.display='none';
   document.getElementById('calendarView').style.display='none';
+  document.getElementById('statsView').style.display='none';
   document.getElementById('detailView').style.display='none';
 }
 function switchView(view){
@@ -1036,6 +1176,9 @@ function switchView(view){
   } else if(view==='calendar'){
     document.getElementById('calendarView').style.display='block';
     renderCalendar();
+  } else if(view==='stats'){
+    document.getElementById('statsView').style.display='block';
+    renderStats();
   }
 }
 function openDetail(id, from){
@@ -1239,6 +1382,7 @@ function renderLessons(s){
         <div>
           <span class="lesson-date">${l.recurrenceId ? '🔁 ' : ''}${formatDate(l.date) || 'Дата не указана'}</span>
           ${l.time ? `<span class="lesson-time">${l.time}</span>` : ''}
+          ${l.duration ? `<span class="lesson-time">· ${formatDuration(l.duration)}</span>` : ''}
         </div>
         <div class="lesson-actions">
           <button class="pay-toggle ${l.paid?'paid':'unpaid'}" onclick="togglePaid('${l.id}')">${payLabel(l)}</button>
@@ -1515,6 +1659,20 @@ function clearTimePicker(){
   closeTimePicker();
 }
 
+/* ---------- ДЛИТЕЛЬНОСТЬ ЗАНЯТИЯ ---------- */
+let pickedDuration = 60;
+function pickDuration(min){
+  pickedDuration = min;
+  document.querySelectorAll('#lessonDurationRow .seg')
+    .forEach(b=>b.classList.toggle('on', Number(b.dataset.dur) === min));
+}
+function formatDuration(min){
+  if(!min) return '';
+  if(min % 60 === 0) return (min/60) + ' ч';
+  if(min < 60) return min + ' мин';
+  return (min/60).toFixed(1).replace('.',',') + ' ч';
+}
+
 /* ---------- LESSON CRUD ---------- */
 function onRecurringToggle(cb){
   const row = document.getElementById('recurringSwitchRow');
@@ -1527,6 +1685,7 @@ function openLessonModal(id, prefillDate){
   document.getElementById('lessonModalTitle').textContent = l ? 'Изменить занятие' : 'Новое занятие';
   setPickedDate(l ? (l.date||'') : (prefillDate || todayStr()));
   setPickedTime(l ? (l.time||'') : '');
+  pickDuration(l ? (l.duration || data.settings.defaultDuration) : data.settings.defaultDuration);
   document.getElementById('lessonTopicInput').value = l ? (l.topic||'') : '';
   document.getElementById('lessonPriceInput').value = l && l.price ? l.price : '';
   document.getElementById('lessonHwInput').value = l ? (l.homework||'') : '';
@@ -1559,7 +1718,7 @@ function saveLesson(){
 
   if(editingLessonId){
     const l = s.lessons.find(x=>x.id===editingLessonId);
-    Object.assign(l, { date, time, topic, price, homework, solution, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol });
+    Object.assign(l, { date, time, topic, price, duration: pickedDuration, homework, solution, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol });
   } else {
     const isRecurring = document.getElementById('lessonRecurringCheckbox').checked;
 
@@ -1574,7 +1733,7 @@ function saveLesson(){
       while(count < OCCURRENCES){
         const occDate = toDateStr(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
         s.lessons.push({
-          id: uid(), date: occDate, time, topic, price, homework, solution,
+          id: uid(), date: occDate, time, topic, price, duration: pickedDuration, homework, solution,
           checked:false, paid:false,
           homeworkAttachments: JSON.parse(JSON.stringify(drafts.hw)),
           solutionAttachments: JSON.parse(JSON.stringify(drafts.sol)),
@@ -1584,7 +1743,7 @@ function saveLesson(){
         count++;
       }
     } else {
-      s.lessons.push({ id: uid(), date, time, topic, price, homework, solution, checked:false, paid:false, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol, recurrenceId: null });
+      s.lessons.push({ id: uid(), date, time, topic, price, duration: pickedDuration, homework, solution, checked:false, paid:false, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol, recurrenceId: null });
     }
   }
   save();
@@ -2013,8 +2172,29 @@ function renderProviderFields(provider){
 function onProviderChange(){
   renderProviderFields(document.getElementById('providerSelect').value);
 }
+let draftWorkDays = [];
+let draftDefaultDuration = 60;
+function toggleWorkDay(d){
+  const i = draftWorkDays.indexOf(d);
+  if(i >= 0) draftWorkDays.splice(i,1); else draftWorkDays.push(d);
+  renderWorkDays();
+}
+function renderWorkDays(){
+  document.querySelectorAll('#workDaysRow .seg')
+    .forEach(b=>b.classList.toggle('on', draftWorkDays.includes(Number(b.dataset.day))));
+}
+function pickDefaultDuration(min){
+  draftDefaultDuration = min;
+  document.querySelectorAll('#defaultDurationRow .seg')
+    .forEach(b=>b.classList.toggle('on', Number(b.dataset.dur) === min));
+}
 function openSettingsModal(){
   const provider = data.settings.provider || 'anthropic';
+  document.getElementById('workStartInput').value = data.settings.workStart || '10:00';
+  document.getElementById('workEndInput').value = data.settings.workEnd || '21:00';
+  draftWorkDays = (data.settings.workDays || []).slice();
+  renderWorkDays();
+  pickDefaultDuration(data.settings.defaultDuration || 60);
   const sel = document.getElementById('providerSelect');
   sel.innerHTML = Object.keys(AI_PROVIDERS)
     .map(k=>`<option value="${k}">${escapeHtml(AI_PROVIDERS[k].label)}</option>`).join('');
@@ -2022,7 +2202,21 @@ function openSettingsModal(){
   renderProviderFields(provider);
   openModal('settingsModalOverlay');
 }
+function normalizeTimeInput(value, fallback){
+  const m = String(value||'').trim().match(/^(\d{1,2})[:.\s]?(\d{2})?$/);
+  if(!m) return fallback;
+  let h = Math.min(23, parseInt(m[1],10));
+  let mi = Math.min(59, parseInt(m[2] || '0', 10));
+  return String(h).padStart(2,'0') + ':' + String(mi).padStart(2,'0');
+}
 function saveSettings(){
+  const ws = normalizeTimeInput(document.getElementById('workStartInput').value, '10:00');
+  const we = normalizeTimeInput(document.getElementById('workEndInput').value, '21:00');
+  data.settings.workStart = ws;
+  data.settings.workEnd = (toMinutes(we) > toMinutes(ws)) ? we : '21:00';
+  data.settings.workDays = draftWorkDays.slice().sort();
+  data.settings.defaultDuration = draftDefaultDuration;
+
   const provider = document.getElementById('providerSelect').value;
   data.settings.provider = provider;
   data.settings.apiKeys[provider] = document.getElementById('apiKeyInput').value.trim();
@@ -2201,6 +2395,346 @@ async function addToAppleCalendar(lessonId){
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   notifyToast('Файл .ics скачан — откройте его, чтобы добавить занятие в календарь.');
+}
+
+/* =======================================================================
+   АНАЛИТИКА: загруженность, часы, заработок, свободные окна
+   ======================================================================= */
+let statsPeriod = 'week';       // 'day' | 'week' | 'month'
+let statsCursor = new Date();
+
+function toMinutes(hhmm){
+  if(!hhmm) return null;
+  const [h,m] = hhmm.split(':').map(Number);
+  return h*60 + (m||0);
+}
+function minutesToHHMM(mins){
+  return String(Math.floor(mins/60)).padStart(2,'0') + ':' + String(mins%60).padStart(2,'0');
+}
+function isoWeekday(date){          // 1 = понедельник … 7 = воскресенье
+  return ((date.getDay() + 6) % 7) + 1;
+}
+function startOfWeek(date){
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() - (isoWeekday(d) - 1));
+  return d;
+}
+
+/* Границы выбранного периода — массив дат (объекты Date, полночь). */
+function statsRangeDays(){
+  const c = statsCursor;
+  if(statsPeriod === 'day'){
+    return [new Date(c.getFullYear(), c.getMonth(), c.getDate())];
+  }
+  if(statsPeriod === 'week'){
+    const s = startOfWeek(c);
+    return Array.from({length:7}, (_,i)=> new Date(s.getFullYear(), s.getMonth(), s.getDate()+i));
+  }
+  const daysInMonth = new Date(c.getFullYear(), c.getMonth()+1, 0).getDate();
+  return Array.from({length:daysInMonth}, (_,i)=> new Date(c.getFullYear(), c.getMonth(), i+1));
+}
+function statsPeriodTitle(){
+  const days = statsRangeDays();
+  if(statsPeriod === 'day') return formatDateLong(toDateStr(days[0].getFullYear(), days[0].getMonth(), days[0].getDate()));
+  if(statsPeriod === 'week'){
+    const a = days[0], b = days[6];
+    const fmt = d => d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'});
+    return `${fmt(a)} — ${fmt(b)}`;
+  }
+  return statsCursor.toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
+}
+
+/* Все занятия за конкретный день, отсортированные по времени. */
+function lessonsOnDate(dateStr){
+  const out = [];
+  data.students.forEach(s=>{
+    (s.lessons||[]).forEach(l=>{
+      if(l.date === dateStr) out.push({ ...l, studentName: s.name, studentId: s.id, color: s.color });
+    });
+  });
+  return out.sort((a,b)=> (a.time||'99:99').localeCompare(b.time||'99:99'));
+}
+
+/* Сводка по периоду. */
+function computeStats(){
+  const days = statsRangeDays();
+  const dayStats = days.map(d=>{
+    const ds = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    const lessons = lessonsOnDate(ds);
+    const minutes = lessons.reduce((sum,l)=> sum + (l.duration || data.settings.defaultDuration), 0);
+    return { date: d, dateStr: ds, lessons, minutes, isWorkDay: data.settings.workDays.includes(isoWeekday(d)) };
+  });
+
+  const all = dayStats.flatMap(d=>d.lessons);
+  const totalMinutes = dayStats.reduce((s,d)=> s + d.minutes, 0);
+  const earned = all.filter(l=>l.paid).reduce((s,l)=> s + (Number(l.price)||0), 0);
+  const unpaid = all.filter(l=>!l.paid).reduce((s,l)=> s + (Number(l.price)||0), 0);
+
+  const workWindow = Math.max(0, toMinutes(data.settings.workEnd) - toMinutes(data.settings.workStart));
+  const capacity = dayStats.filter(d=>d.isWorkDay).length * workWindow;
+  const loadPct = capacity > 0 ? Math.min(100, Math.round(totalMinutes / capacity * 100)) : 0;
+
+  const byStudent = {};
+  all.forEach(l=>{
+    const k = l.studentId;
+    if(!byStudent[k]) byStudent[k] = { name: l.studentName, color: l.color, minutes:0, count:0, earned:0, unpaid:0 };
+    byStudent[k].minutes += (l.duration || data.settings.defaultDuration);
+    byStudent[k].count++;
+    if(l.paid) byStudent[k].earned += (Number(l.price)||0);
+    else byStudent[k].unpaid += (Number(l.price)||0);
+  });
+
+  return {
+    dayStats, lessonCount: all.length, totalMinutes, earned, unpaid,
+    capacity, loadPct, unchecked: all.filter(l=>l.homework && !l.checked).length,
+    byStudent: Object.values(byStudent).sort((a,b)=> b.minutes - a.minutes)
+  };
+}
+
+/* Свободные окна: рабочее окно минус занятия. Минимальное окно — 30 мин. */
+function freeSlotsForDate(dateStr, isWorkDay){
+  if(!isWorkDay) return [];
+  const dayStart = toMinutes(data.settings.workStart);
+  const dayEnd = toMinutes(data.settings.workEnd);
+
+  const busy = lessonsOnDate(dateStr)
+    .filter(l=>l.time)
+    .map(l=>{
+      const start = toMinutes(l.time);
+      return { start, end: start + (l.duration || data.settings.defaultDuration) };
+    })
+    .sort((a,b)=> a.start - b.start);
+
+  // склеиваем пересекающиеся занятия
+  const merged = [];
+  busy.forEach(b=>{
+    const last = merged[merged.length-1];
+    if(last && b.start <= last.end) last.end = Math.max(last.end, b.end);
+    else merged.push({ ...b });
+  });
+
+  const slots = [];
+  let cursor = dayStart;
+  merged.forEach(b=>{
+    if(b.start > cursor) slots.push({ start: cursor, end: Math.min(b.start, dayEnd) });
+    cursor = Math.max(cursor, b.end);
+  });
+  if(cursor < dayEnd) slots.push({ start: cursor, end: dayEnd });
+
+  return slots.filter(s=> s.end - s.start >= 30 && s.start < dayEnd);
+}
+
+/* ---------- отрисовка ---------- */
+function setStatsPeriod(p){ statsPeriod = p; renderStats(); }
+function statsToday(){ statsCursor = new Date(); renderStats(); }
+function statsShift(dir){
+  const c = statsCursor;
+  if(statsPeriod === 'day') statsCursor = new Date(c.getFullYear(), c.getMonth(), c.getDate() + dir);
+  else if(statsPeriod === 'week') statsCursor = new Date(c.getFullYear(), c.getMonth(), c.getDate() + 7*dir);
+  else statsCursor = new Date(c.getFullYear(), c.getMonth() + dir, 1);
+  renderStats();
+}
+
+function renderStats(){
+  document.querySelectorAll('#statsPeriodRow .seg')
+    .forEach(b=>b.classList.toggle('on', b.dataset.period === statsPeriod));
+  document.getElementById('statsPeriodLabel').textContent = statsPeriodTitle();
+
+  const st = computeStats();
+  renderStatsKpis(st);
+  renderLoadChart(st);
+  renderFreeSlots(st);
+  renderByStudent(st);
+  renderEarningsChart();
+}
+
+function renderStatsKpis(st){
+  const hours = (st.totalMinutes/60);
+  const hoursStr = Number.isInteger(hours) ? String(hours) : hours.toFixed(1).replace('.',',');
+  const money = n => n.toLocaleString('ru-RU') + ' ₽';
+  document.getElementById('statsKpis').innerHTML = `
+    <div class="kpi"><div class="k-label">Занятий</div><div class="k-value">${st.lessonCount}</div>
+      <div class="k-sub">${st.unchecked>0 ? '⚠ '+st.unchecked+' с непровер. ДЗ' : 'всё проверено'}</div></div>
+    <div class="kpi"><div class="k-label">Часов</div><div class="k-value">${hoursStr}</div>
+      <div class="k-sub">${formatDuration(st.totalMinutes)}</div></div>
+    <div class="kpi good"><div class="k-label">Заработано</div><div class="k-value">${money(st.earned)}</div>
+      <div class="k-sub">оплаченные занятия</div></div>
+    <div class="kpi warn"><div class="k-label">Ожидает оплаты</div><div class="k-value">${money(st.unpaid)}</div>
+      <div class="k-sub">${st.unpaid>0 ? 'не оплачено' : 'долгов нет'}</div></div>
+    <div class="kpi accent"><div class="k-label">Загруженность</div><div class="k-value">${st.loadPct}%</div>
+      <div class="load-bar"><span style="width:${st.loadPct}%"></span></div></div>
+  `;
+}
+
+/* Столбчатая диаграмма занятости по дням — рисуем сами, без внешних библиотек. */
+function renderLoadChart(st){
+  const title = statsPeriod === 'day' ? 'Расписание дня' : 'Загруженность по дням';
+  document.getElementById('statsChartTitle').textContent = title;
+
+  const box = document.getElementById('statsLoadChart');
+
+  if(statsPeriod === 'day'){
+    const d = st.dayStats[0];
+    if(!d.lessons.length){
+      box.innerHTML = `<div class="empty-state-sm">${d.isWorkDay ? 'Занятий нет — день полностью свободен.' : 'Выходной день.'}</div>`;
+      return;
+    }
+    box.innerHTML = d.lessons.map(l=>{
+      const dur = l.duration || data.settings.defaultDuration;
+      const end = l.time ? minutesToHHMM(toMinutes(l.time)+dur) : '';
+      return `<div class="slot-day">
+        <div class="slot-chips">
+          <span class="slot-chip busy" style="border-left:3px solid ${l.color};">
+            ${l.time ? l.time+'–'+end : 'без времени'} · ${escapeHtml(l.studentName)} · ${formatDuration(dur)}${l.price ? ' · '+l.price+'₽' : ''}
+          </span>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  const days = st.dayStats;
+  const workWindow = Math.max(60, toMinutes(data.settings.workEnd) - toMinutes(data.settings.workStart));
+  const maxMin = Math.max(workWindow, ...days.map(d=>d.minutes));
+
+  const W = Math.max(320, days.length * 46);
+  const H = 170, padB = 34, padT = 10;
+  const bw = Math.min(30, (W / days.length) * 0.6);
+
+  const bars = days.map((d,i)=>{
+    const x = (i + 0.5) * (W/days.length);
+    const h = maxMin ? (d.minutes / maxMin) * (H - padT - padB) : 0;
+    const y = H - padB - h;
+    const label = statsPeriod === 'week'
+      ? ['пн','вт','ср','чт','пт','сб','вс'][i]
+      : String(d.date.getDate());
+    const isToday = d.dateStr === todayStr();
+    const fill = d.minutes === 0 ? 'var(--surface2)' : (d.isWorkDay ? 'var(--accent)' : 'var(--warn)');
+    const show = statsPeriod === 'week' || d.date.getDate() % 2 === 1;
+    return `
+      ${d.minutes > 0 ? `<rect x="${x-bw/2}" y="${y}" width="${bw}" height="${Math.max(2,h)}" rx="4" fill="${fill}"><title>${label}: ${formatDuration(d.minutes)}</title></rect>`
+        : `<rect x="${x-bw/2}" y="${H-padB-3}" width="${bw}" height="3" rx="1.5" fill="var(--surface2)"/>`}
+      ${show ? `<text x="${x}" y="${H-padB+16}" text-anchor="middle" font-size="10" fill="${isToday?'var(--accent)':'var(--muted)'}" font-weight="${isToday?'700':'400'}">${label}</text>` : ''}
+      ${d.minutes > 0 && statsPeriod === 'week' ? `<text x="${x}" y="${y-5}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${(d.minutes/60).toFixed(1).replace('.0','').replace('.',',')}</text>` : ''}
+    `;
+  }).join('');
+
+  const capLineY = H - padB - (maxMin ? (workWindow/maxMin)*(H-padT-padB) : 0);
+
+  box.innerHTML = `
+    <div style="overflow-x:auto;">
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMinYMid meet">
+        <line x1="0" y1="${H-padB}" x2="${W}" y2="${H-padB}" stroke="var(--border)"/>
+        <line x1="0" y1="${capLineY}" x2="${W}" y2="${capLineY}" stroke="var(--border)" stroke-dasharray="3 4"/>
+        <text x="4" y="${capLineY-4}" font-size="9" fill="var(--muted)">полный день (${formatDuration(workWindow)})</text>
+        ${bars}
+      </svg>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>рабочий день</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--warn)"></span>занятие в выходной</span>
+    </div>
+  `;
+}
+
+function renderFreeSlots(st){
+  const box = document.getElementById('statsFreeSlots');
+  const days = st.dayStats.filter(d=>d.isWorkDay);
+  if(!days.length){
+    box.innerHTML = '<div class="empty-state-sm">В этот период нет рабочих дней. Настроить можно в ⚙ Настройках.</div>';
+    return;
+  }
+  // на месяц показываем только ближайшие дни, иначе список огромный
+  const shown = statsPeriod === 'month'
+    ? days.filter(d=> d.dateStr >= todayStr()).slice(0,10)
+    : days;
+  if(!shown.length){
+    box.innerHTML = '<div class="empty-state-sm">Все дни месяца уже прошли.</div>';
+    return;
+  }
+  box.innerHTML = shown.map(d=>{
+    const slots = freeSlotsForDate(d.dateStr, d.isWorkDay);
+    const name = d.date.toLocaleDateString('ru-RU', {weekday:'short', day:'numeric', month:'short'});
+    const chips = slots.length
+      ? slots.map(s=>`<span class="slot-chip">${minutesToHHMM(s.start)}–${minutesToHHMM(s.end)}</span>`).join('')
+      : '<span class="slot-chip busy">день занят полностью</span>';
+    return `<div class="slot-day"><div class="slot-day-name">${name}</div><div class="slot-chips">${chips}</div></div>`;
+  }).join('');
+}
+
+function renderByStudent(st){
+  const box = document.getElementById('statsByStudent');
+  if(!st.byStudent.length){
+    box.innerHTML = '<div class="empty-state-sm">В этот период занятий не было.</div>';
+    return;
+  }
+  const max = Math.max(...st.byStudent.map(s=>s.minutes));
+  box.innerHTML = st.byStudent.map(s=>`
+    <div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:5px;">
+        <span>${escapeHtml(s.name)}</span>
+        <span class="muted-note">${s.count} зан. · ${formatDuration(s.minutes)}${s.earned ? ' · '+s.earned.toLocaleString('ru-RU')+'₽' : ''}</span>
+      </div>
+      <div class="load-bar"><span style="width:${Math.round(s.minutes/max*100)}%;background:${s.color};"></span></div>
+    </div>
+  `).join('');
+}
+
+/* Заработок за последние 6 месяцев — линия по оплаченным занятиям. */
+function renderEarningsChart(){
+  const box = document.getElementById('statsEarningsChart');
+  const months = [];
+  const base = new Date(statsCursor.getFullYear(), statsCursor.getMonth(), 1);
+  for(let i=5; i>=0; i--){
+    const d = new Date(base.getFullYear(), base.getMonth()-i, 1);
+    months.push({ y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('ru-RU',{month:'short'}), paid:0, unpaid:0 });
+  }
+  data.students.forEach(s=>(s.lessons||[]).forEach(l=>{
+    if(!l.date) return;
+    const [y,m] = l.date.split('-').map(Number);
+    const slot = months.find(x=> x.y===y && x.m===m-1);
+    if(!slot) return;
+    if(l.paid) slot.paid += (Number(l.price)||0);
+    else slot.unpaid += (Number(l.price)||0);
+  }));
+
+  const max = Math.max(1, ...months.map(x=>x.paid + x.unpaid));
+  if(max === 1 && months.every(x=>x.paid+x.unpaid===0)){
+    box.innerHTML = '<div class="empty-state-sm">Пока нет данных о стоимости занятий. Указывайте цену — и здесь появится график.</div>';
+    return;
+  }
+
+  const W = 480, H = 170, padB = 30, padT = 12, padL = 6;
+  const step = (W - padL*2) / months.length;
+  const bw = Math.min(38, step*0.55);
+
+  const bars = months.map((x,i)=>{
+    const cx = padL + step*(i+0.5);
+    const totalH = ((x.paid + x.unpaid) / max) * (H - padT - padB);
+    const paidH = ((x.paid) / max) * (H - padT - padB);
+    const yTotal = H - padB - totalH;
+    const yPaid = H - padB - paidH;
+    const sum = x.paid + x.unpaid;
+    return `
+      ${x.unpaid>0 ? `<rect x="${cx-bw/2}" y="${yTotal}" width="${bw}" height="${Math.max(1,totalH-paidH)}" rx="3" fill="var(--warn)" opacity=".55"><title>${x.label}: не оплачено ${x.unpaid.toLocaleString('ru-RU')}₽</title></rect>` : ''}
+      ${x.paid>0 ? `<rect x="${cx-bw/2}" y="${yPaid}" width="${bw}" height="${Math.max(1,paidH)}" rx="3" fill="var(--success)"><title>${x.label}: получено ${x.paid.toLocaleString('ru-RU')}₽</title></rect>` : ''}
+      ${sum>0 ? `<text x="${cx}" y="${yTotal-5}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${Math.round(sum/1000)>0 ? Math.round(sum/1000)+'к' : sum}</text>` : ''}
+      <text x="${cx}" y="${H-padB+16}" text-anchor="middle" font-size="10" fill="var(--muted)">${x.label}</text>
+    `;
+  }).join('');
+
+  box.innerHTML = `
+    <div style="overflow-x:auto;">
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMinYMid meet">
+        <line x1="0" y1="${H-padB}" x2="${W}" y2="${H-padB}" stroke="var(--border)"/>
+        ${bars}
+      </svg>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:var(--success)"></span>получено</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--warn);opacity:.55"></span>ожидает оплаты</span>
+    </div>
+  `;
 }
 
 /* ---------- CALENDAR ---------- */
