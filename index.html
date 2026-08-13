@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Дневник преподавателя</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     /* Сообщаем браузеру, что интерфейс тёмный: тогда системные всплывающие
@@ -373,6 +374,120 @@
   .modal{overflow-x:hidden;}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
 
+  /* Плашка демо-режима */
+  #demoBanner{
+    position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
+    background:var(--warn);color:#0b0d13;font-size:12.5px;font-weight:500;
+    padding:8px 10px 8px 16px;border-radius:22px;z-index:150;
+    display:flex;align-items:center;gap:6px;max-width:94vw;
+    box-shadow:0 6px 20px rgba(0,0,0,.4);
+  }
+  #demoBanner button{color:#0b0d13;font-weight:600;padding:4px 10px;}
+  #demoBanner button:hover{background:rgba(0,0,0,.12);}
+
+  /* Экран входа */
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .auth-card{
+    width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);
+    border-radius:16px;padding:26px 22px;
+  }
+  .auth-title{font-size:20px;margin:0 0 4px;}
+  .auth-sub{color:var(--muted);font-size:13px;margin:0 0 20px;}
+  .auth-divider{display:flex;align-items:center;gap:10px;margin:16px 0 4px;color:var(--muted);font-size:12px;}
+  .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+  .auth-error{color:var(--danger);font-size:12.5px;min-height:18px;margin-top:4px;}
+
+  /* Кабинет ученика */
+  .stu-lesson{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:10px;
+  }
+  .stu-lesson.done{border-color:#2a5c46;}
+  .stu-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .stu-flags{display:flex;gap:6px;flex-wrap:wrap;}
+  .flag{
+    display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:6px;
+    font-size:11.5px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);
+    white-space:nowrap;
+  }
+  .flag.ok{background:var(--success-dim);color:var(--success);border-color:#2a5c46;}
+  .flag.bad{background:var(--danger-dim);color:#ffb0b0;border-color:#5c2a2a;}
+  .flag.wait{background:#3a2f14;color:var(--warn);border-color:#5c4a1f;}
+  .submission-box{
+    margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);
+  }
+
+  /* Игровой прогресс */
+  .game-hero{
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:18px 20px;
+  }
+  .game-hero-text{flex:1;min-width:180px;}
+  .game-level{font-size:15px;font-weight:600;}
+  .game-xp{font-size:22px;font-weight:700;color:var(--accent);margin:2px 0 8px;font-variant-numeric:tabular-nums;}
+  .xp-bar{height:9px;background:var(--surface2);border-radius:5px;overflow:hidden;}
+  .xp-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#8ea6ff);border-radius:5px;transition:width .4s;}
+
+  .streak-box{
+    text-align:center;padding:10px 16px;border-radius:12px;
+    background:var(--surface2);border:1px solid var(--border);min-width:78px;
+  }
+  .streak-box.hot{background:#3a2414;border-color:#6b4420;}
+  .streak-num{font-size:26px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;}
+  .streak-box.hot .streak-num{color:#ff9040;}
+  .streak-label{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap;}
+
+  .badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px;}
+  .badge-item{
+    text-align:center;padding:12px 6px;border-radius:10px;
+    background:var(--surface2);border:1px solid var(--border);
+    opacity:.35;filter:grayscale(1);transition:opacity .2s,filter .2s,transform .15s;
+  }
+  .badge-item.got{opacity:1;filter:none;border-color:var(--accent-dim);}
+  .badge-item.got:hover{transform:translateY(-2px);}
+  .badge-icon{font-size:24px;line-height:1;}
+  .badge-name{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.25;}
+  .badge-item.got .badge-name{color:var(--text);}
+
+  /* Компактный вариант для карточки ученика у преподавателя */
+  .game-mini{
+    display:flex;align-items:center;gap:12px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:12px 14px;margin-bottom:16px;flex-wrap:wrap;
+  }
+  .game-mini .gm-text{flex:1;min-width:150px;}
+  .game-mini .gm-title{font-size:13.5px;font-weight:600;}
+  .game-mini .gm-sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .game-mini .gm-badges{display:flex;gap:4px;font-size:16px;flex-wrap:wrap;}
+
+  /* Оценка */
+  .grade-badge{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:24px;height:24px;padding:0 6px;border-radius:7px;
+    font-size:13px;font-weight:700;color:#0b0d13;background:var(--muted);
+  }
+  .grade-5{background:var(--success);}
+  .grade-4{background:#8fd694;}
+  .grade-3{background:var(--warn);}
+  .grade-2{background:var(--danger);color:#fff;}
+
+  /* Ссылка на видеовстречу */
+  .meet-link{
+    display:inline-flex;align-items:center;gap:6px;color:var(--accent);
+    text-decoration:none;font-size:13.5px;font-weight:500;
+  }
+  .meet-link:hover{text-decoration:underline;}
+  .link-row{display:flex;gap:8px;align-items:center;}
+  .link-row input{flex:1;min-width:0;}
+  .link-row .seg{flex-shrink:0;font-size:16px;padding:8px 14px;line-height:1;}
+
+  /* Строка ввода длительности: число + выбор единицы */
+  .dur-row{display:flex;gap:8px;align-items:center;}
+  .dur-row input{flex:0 1 110px;min-width:0;text-align:center;font-variant-numeric:tabular-nums;}
+  .dur-row .seg-row{flex-shrink:0;}
+  .dur-row .seg{padding:9px 15px;}
+
   /* Сегментированный выбор (длительность, дни недели, период) */
   .seg-row{display:flex;gap:6px;flex-wrap:wrap;}
   .seg{
@@ -445,7 +560,153 @@
 </style>
 </head>
 <body>
-<div class="app">
+
+<!-- ЭКРАН ВХОДА -->
+<div id="authScreen" style="display:none;">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <h1 class="auth-title">Дневник преподавателя</h1>
+      <p class="auth-sub" id="authSub">Войдите, чтобы продолжить</p>
+
+      <div id="authTgBlock" style="display:none;margin-bottom:18px;">
+        <button class="btn-primary" style="width:100%;padding:12px;" onclick="loginWithTelegram()">
+          Продолжить через Telegram
+        </button>
+        <div class="auth-divider"><span>или по логину</span></div>
+      </div>
+
+      <div class="seg-row" id="authRoleRow" style="margin-bottom:16px;">
+        <button type="button" class="seg on" data-mode="login" onclick="setAuthMode('login')">Вход</button>
+        <button type="button" class="seg" data-mode="register" onclick="setAuthMode('register')">Регистрация</button>
+      </div>
+
+      <div class="field" id="authNameWrap" style="display:none;">
+        <label>Как вас зовут</label>
+        <input type="text" id="authName" placeholder="Имя">
+      </div>
+      <div class="field">
+        <label>Логин</label>
+        <input type="text" id="authLogin" placeholder="например, ivan_teacher" autocapitalize="off" autocorrect="off">
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input type="password" id="authPassword" placeholder="не короче 6 символов">
+      </div>
+      <div class="muted-note" id="authRegNote" style="display:none;margin-bottom:12px;">
+        Регистрация только для преподавателей. Ученику доступ выдаёте вы —
+        ссылкой или логином с паролем из его карточки.
+      </div>
+
+      <div class="auth-error" id="authError"></div>
+
+      <button class="btn-primary" style="width:100%;padding:12px;margin-top:6px;" id="authSubmitBtn" onclick="submitAuth()">Войти</button>
+    </div>
+  </div>
+</div>
+
+<!-- ДОСТУП УЧЕНИКА -->
+<div class="modal-overlay" id="accessModalOverlay">
+  <div class="modal">
+    <h3>Доступ для ученика</h3>
+    <p class="muted-note" style="margin-top:-8px;" id="accessHint">
+      Пароль показывается один раз. Скопируйте и передайте ученику.
+    </p>
+
+    <div class="field">
+      <label>Ссылка для входа — достаточно открыть</label>
+      <input type="text" id="accessLink" readonly onclick="this.select()">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Логин</label>
+        <input type="text" id="accessLogin" readonly onclick="this.select()">
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input type="text" id="accessPassword" readonly onclick="this.select()">
+      </div>
+    </div>
+
+    <div class="modal-actions" style="justify-content:stretch;flex-direction:column;gap:8px;">
+      <button class="btn-primary" onclick="shareAccess()">Отправить ученику</button>
+      <button class="btn-secondary" onclick="copyAccess()">Скопировать</button>
+      <button class="btn-ghost" onclick="closeModal('accessModalOverlay')">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- КАБИНЕТ УЧЕНИКА -->
+<div id="studentApp" class="app" style="display:none;">
+  <div class="top-nav">
+    <div>
+      <h1 id="stuTitle">Мои занятия</h1>
+      <div class="sub" id="stuSub"></div>
+    </div>
+    <div class="top-actions">
+      <button class="btn-ghost" onclick="logout()">Выйти</button>
+    </div>
+  </div>
+
+  <div class="tabs" style="margin-bottom:20px;width:fit-content;">
+    <button class="tab active" data-stuview="lessons" onclick="setStuView('lessons')">Занятия</button>
+    <button class="tab" data-stuview="progress" onclick="setStuView('progress')">Прогресс</button>
+    <button class="tab" data-stuview="calendar" onclick="setStuView('calendar')">Календарь</button>
+  </div>
+
+  <div id="stuProgressView" style="display:none;"></div>
+
+  <div id="stuLessonsView">
+    <div class="kpi-grid" id="stuKpis"></div>
+
+    <div class="seg-row" id="stuFilterRow" style="margin-bottom:16px;">
+      <button type="button" class="seg on" data-f="all" onclick="setStuFilter('all')">Все</button>
+      <button type="button" class="seg" data-f="todo" onclick="setStuFilter('todo')">Нужно сдать</button>
+      <button type="button" class="seg" data-f="unpaid" onclick="setStuFilter('unpaid')">Не оплачено</button>
+    </div>
+
+    <div id="stuLessonList"></div>
+  </div>
+
+  <div id="stuCalendarView" style="display:none;">
+    <div class="cal-header">
+      <div class="cal-nav">
+        <button class="btn-secondary btn-sm" onclick="stuCalShift(-1)">←</button>
+        <button class="btn-secondary btn-sm" onclick="stuCalToday()">Сегодня</button>
+        <button class="btn-secondary btn-sm" onclick="stuCalShift(1)">→</button>
+      </div>
+      <h2 id="stuCalLabel"></h2>
+    </div>
+    <div class="cal-weekdays">
+      <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+    </div>
+    <div class="cal-grid" id="stuCalGrid"></div>
+    <div class="section-label">Ближайшие занятия</div>
+    <div id="stuUpcoming"></div>
+  </div>
+</div>
+
+<!-- СДАЧА ДОМАШНЕГО ЗАДАНИЯ -->
+<div class="modal-overlay" id="submitModalOverlay">
+  <div class="modal">
+    <h3>Сдать домашнее задание</h3>
+    <div class="muted-note" id="submitLessonInfo" style="margin-bottom:14px;"></div>
+    <div class="field">
+      <label>Комментарий и работа</label>
+      <div class="smart-input" id="subSmartInput">
+        <textarea id="submitTextInput" rows="4" placeholder="Ответы, вопросы. Вставьте ссылку или фото — добавится автоматически"></textarea>
+        <button type="button" class="clip-btn" title="Прикрепить фото или файл" onclick="document.getElementById('subFileInput').click()">📎</button>
+      </div>
+      <input type="file" id="subFileInput" multiple style="display:none" onchange="onFileSelected('sub', this.files); this.value='';">
+      <div class="chips-row" id="subAttachChips"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('submitModalOverlay')">Отмена</button>
+      <button class="btn-primary" onclick="saveSubmission()">Отправить</button>
+    </div>
+  </div>
+</div>
+
+<div id="teacherApp" class="app" style="display:none;">
 
   <div class="top-nav">
     <div>
@@ -455,6 +716,7 @@
     <div class="tabs">
       <button class="tab active" data-view="students" onclick="switchView('students')">Ученики</button>
       <button class="tab" data-view="calendar" onclick="switchView('calendar')">Календарь</button>
+      <button class="tab" data-view="knowledge" onclick="switchView('knowledge')">База знаний</button>
       <button class="tab" data-view="stats" onclick="switchView('stats')">Аналитика</button>
     </div>
     <div class="top-actions">
@@ -483,6 +745,42 @@
       <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
     </div>
     <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <!-- KNOWLEDGE: SUBJECTS -->
+  <div id="knowledgeView" style="display:none;">
+    <div class="section-label" style="margin-top:0;">Предметы</div>
+    <div id="subjectGrid"></div>
+  </div>
+
+  <!-- KNOWLEDGE: TOPICS OF ONE SUBJECT -->
+  <div id="subjectView" style="display:none;">
+    <button class="btn-ghost" style="margin-bottom:14px;" onclick="switchView('knowledge')">← Все предметы</button>
+    <div class="detail-header">
+      <div class="detail-title">
+        <div class="avatar-lg" id="subjectAvatar"></div>
+        <div>
+          <h2 id="subjectName"></h2>
+          <div class="subject" id="subjectCount"></div>
+        </div>
+      </div>
+      <div class="detail-actions">
+        <button class="btn-secondary btn-sm" onclick="openSubjectModal(currentSubjectId)">Изменить</button>
+        <button class="btn-primary btn-sm" onclick="openTopicModal()">+ Тема</button>
+      </div>
+    </div>
+
+    <div class="field" style="max-width:340px;">
+      <input type="text" id="topicSearchInput" placeholder="Поиск по темам" oninput="renderTopics()">
+    </div>
+
+    <div class="seg-row" id="topicFilterRow" style="margin-bottom:16px;">
+      <button type="button" class="seg on" data-kind="all" onclick="setTopicFilter('all')">Все</button>
+      <button type="button" class="seg" data-kind="material" onclick="setTopicFilter('material')">Материалы</button>
+      <button type="button" class="seg" data-kind="tasks" onclick="setTopicFilter('tasks')">Задачи</button>
+    </div>
+
+    <div id="topicList"></div>
   </div>
 
   <!-- STATS VIEW -->
@@ -523,6 +821,14 @@
       <h4>Заработок по месяцам</h4>
       <div id="statsEarningsChart"></div>
     </div>
+
+    <div class="panel" id="productMetricsPanel" style="display:none;">
+      <h4>Метрики сервиса</h4>
+      <div class="kpi-grid" id="productMetrics"></div>
+      <div class="muted-note" style="margin-top:6px;">
+        Активные пользователи по всему приложению — все преподаватели и ученики, а не только ваши.
+      </div>
+    </div>
   </div>
 
   <!-- DETAIL VIEW -->
@@ -537,10 +843,13 @@
         </div>
       </div>
       <div class="detail-actions">
+        <button class="btn-secondary btn-sm" id="inviteBtn" onclick="inviteStudent()">🔗 Пригласить</button>
         <button class="btn-secondary btn-sm" onclick="openStudentModal(currentStudentId)">Изменить</button>
         <button class="btn-primary btn-sm" onclick="openLessonModal()">+ Занятие</button>
       </div>
     </div>
+
+    <div class="kpi-grid" id="studentStats"></div>
 
     <div class="section-label">Занятия и домашние задания</div>
     <div id="lessonList"></div>
@@ -606,16 +915,34 @@
     </div>
     <div class="field">
       <label>Длительность</label>
-      <div class="seg-row" id="lessonDurationRow">
-        <button type="button" class="seg" data-dur="45" onclick="pickDuration(45)">45 мин</button>
-        <button type="button" class="seg" data-dur="60" onclick="pickDuration(60)">1 ч</button>
-        <button type="button" class="seg" data-dur="90" onclick="pickDuration(90)">1,5 ч</button>
-        <button type="button" class="seg" data-dur="120" onclick="pickDuration(120)">2 ч</button>
+      <div class="dur-row">
+        <input type="text" inputmode="numeric" id="lessonDurationValue" placeholder="60"
+               oninput="onDurationInput()" onblur="onDurationInput()">
+        <div class="seg-row">
+          <button type="button" class="seg on" data-unit="min" onclick="pickDurationUnit('min')">мин</button>
+          <button type="button" class="seg" data-unit="hour" onclick="pickDurationUnit('hour')">ч</button>
+        </div>
       </div>
+      <div class="muted-note" id="durationHint" style="margin-top:6px;"></div>
     </div>
     <div class="field">
       <label>Пройденная тема</label>
       <input type="text" id="lessonTopicInput" placeholder="Например, Квадратные уравнения">
+    </div>
+
+    <div class="field">
+      <label>Ссылка на видеовстречу</label>
+      <div class="link-row">
+        <input type="text" id="lessonMeetingUrl" placeholder="Zoom, Meet, Телемост — любая ссылка">
+        <button type="button" class="seg" onclick="openMeetingMenu()" title="Создать встречу">＋</button>
+      </div>
+      <div class="seg-row" id="meetingPlatforms" style="display:none;margin-top:8px;">
+        <button type="button" class="seg" onclick="createZoomMeeting()">Zoom автоматически</button>
+        <button type="button" class="seg" onclick="openPlatform('https://meet.google.com/new')">Google Meet</button>
+        <button type="button" class="seg" onclick="openPlatform('https://telemost.yandex.ru')">Телемост</button>
+        <button type="button" class="seg" onclick="openPlatform('https://zoom.us/start/videomeeting')">Zoom вручную</button>
+      </div>
+      <div class="muted-note" id="meetingHint" style="margin-top:6px;"></div>
     </div>
     <div class="field">
       <label>Стоимость занятия (₽, необязательно)</label>
@@ -635,13 +962,29 @@
     </div>
 
     <div class="field">
-      <label>Домашнее задание</label>
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span>Домашнее задание</span>
+        <button type="button" class="seg" style="padding:5px 11px;font-size:12px;" onclick="openKbPicker('hw')">📚 Из базы знаний</button>
+      </label>
       <div class="smart-input" id="hwSmartInput">
         <textarea id="lessonHwInput" rows="3" placeholder="Что задано ученику. Вставьте ссылку или фото — добавится автоматически"></textarea>
         <button type="button" class="clip-btn" title="Прикрепить фото или файл" onclick="document.getElementById('hwFileInput').click()">📎</button>
       </div>
       <input type="file" id="hwFileInput" multiple style="display:none" onchange="onFileSelected('hw', this.files); this.value='';">
       <div class="chips-row" id="hwAttachChips"></div>
+    </div>
+
+    <div class="field" id="gradeFieldWrap">
+      <label>Как справился с домашним заданием</label>
+      <div class="seg-row" id="gradeRow">
+        <button type="button" class="seg" data-grade="0" onclick="pickGrade(0)">Не оценивать</button>
+        <button type="button" class="seg" data-grade="2" onclick="pickGrade(2)">😕 Слабо</button>
+        <button type="button" class="seg" data-grade="3" onclick="pickGrade(3)">🙂 Неплохо</button>
+        <button type="button" class="seg" data-grade="4" onclick="pickGrade(4)">👍 Хорошо</button>
+        <button type="button" class="seg" data-grade="5" onclick="pickGrade(5)">🌟 Отлично</button>
+      </div>
+      <div class="muted-note" id="gradeXpHint" style="margin-top:6px;"></div>
+      <input type="text" id="lessonGradeComment" placeholder="Что похвалить, над чем поработать (необязательно)" style="margin-top:8px;">
     </div>
 
     <div class="field">
@@ -710,6 +1053,70 @@
       <button class="btn-secondary" onclick="deleteLessonOnly()">🗑 Удалить только это занятие</button>
       <button class="btn-danger" onclick="deleteLessonSeries()">🔁 Удалить повторение (это и все будущие)</button>
       <button class="btn-ghost" onclick="pendingDeleteLessonId=null; closeModal('seriesDeleteModalOverlay')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUBJECT MODAL -->
+<div class="modal-overlay" id="subjectModalOverlay">
+  <div class="modal">
+    <h3 id="subjectModalTitle">Новый предмет</h3>
+    <div class="field">
+      <label>Название</label>
+      <input type="text" id="subjectNameInput" placeholder="Например, Математика">
+    </div>
+    <div class="field">
+      <label>Цвет</label>
+      <div class="swatches" id="subjectSwatches"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('subjectModalOverlay')">Отмена</button>
+      <button class="btn-primary" onclick="saveSubject()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOPIC MODAL -->
+<div class="modal-overlay" id="topicModalOverlay">
+  <div class="modal">
+    <h3 id="topicModalTitle">Новая тема</h3>
+    <div class="field">
+      <label>Название темы</label>
+      <input type="text" id="topicTitleInput" placeholder="Например, Квадратные уравнения">
+    </div>
+    <div class="field">
+      <label>Тип</label>
+      <div class="seg-row" id="topicKindRow">
+        <button type="button" class="seg" data-kind="material" onclick="pickTopicKind('material')">📘 Материал</button>
+        <button type="button" class="seg" data-kind="tasks" onclick="pickTopicKind('tasks')">✏️ Задачи</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Содержание</label>
+      <div class="smart-input" id="kbSmartInput">
+        <textarea id="topicTextInput" rows="5" placeholder="Объяснение, план, условия задач. Вставьте ссылку или фото — добавится автоматически"></textarea>
+        <button type="button" class="clip-btn" title="Прикрепить фото или файл" onclick="document.getElementById('kbFileInput').click()">📎</button>
+      </div>
+      <input type="file" id="kbFileInput" multiple style="display:none" onchange="onFileSelected('kb', this.files); this.value='';">
+      <div class="chips-row" id="kbAttachChips"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('topicModalOverlay')">Отмена</button>
+      <button class="btn-primary" onclick="saveTopic()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- KNOWLEDGE BASE PICKER (вставка материала в ДЗ) -->
+<div class="modal-overlay" id="kbPickerOverlay">
+  <div class="modal">
+    <h3 id="kbPickerTitle">Взять из базы знаний</h3>
+    <div class="field">
+      <input type="text" id="kbPickerSearch" placeholder="Поиск по темам" oninput="renderKbPicker()">
+    </div>
+    <div id="kbPickerList"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('kbPickerOverlay')">Закрыть</button>
     </div>
   </div>
 </div>
@@ -797,13 +1204,15 @@
     </div>
     <div class="field">
       <label>Длительность занятия по умолчанию</label>
-      <div class="seg-row" id="defaultDurationRow">
-        <button type="button" class="seg" data-dur="45" onclick="pickDefaultDuration(45)">45 мин</button>
-        <button type="button" class="seg" data-dur="60" onclick="pickDefaultDuration(60)">1 ч</button>
-        <button type="button" class="seg" data-dur="90" onclick="pickDefaultDuration(90)">1,5 ч</button>
-        <button type="button" class="seg" data-dur="120" onclick="pickDefaultDuration(120)">2 ч</button>
+      <div class="dur-row">
+        <input type="text" inputmode="numeric" id="defaultDurationValue" placeholder="60"
+               oninput="onDefaultDurationInput()" onblur="onDefaultDurationInput()">
+        <div class="seg-row">
+          <button type="button" class="seg on" data-unit="min" onclick="pickDefaultDurationUnit('min')">мин</button>
+          <button type="button" class="seg" data-unit="hour" onclick="pickDefaultDurationUnit('hour')">ч</button>
+        </div>
       </div>
-      <div class="muted-note" style="margin-top:6px;">Используется для новых занятий и для расчёта загруженности.</div>
+      <div class="muted-note" id="defaultDurationHint" style="margin-top:6px;">Используется для новых занятий и для расчёта загруженности.</div>
     </div>
 
     <div class="section-label">ИИ-ассистент</div>
@@ -871,7 +1280,14 @@ let pendingCalendarLessonId = null;
 let currentDayDate = null;
 let calCursor = new Date(); calCursor.setDate(1);
 
-let drafts = { hw: [], sol: [], mat: [] };
+let drafts = { hw: [], sol: [], mat: [], kb: [], sub: [] };
+let currentSubjectId = null;
+let editingSubjectId = null;
+let editingTopicId = null;
+let topicFilter = 'all';
+let pickedTopicKind = 'material';
+let kbPickerTarget = 'hw';
+let selectedSubjectColor = COLORS[0];
 
 /* ---------- ПОДДЕРЖИВАЕМЫЕ ИИ-СЕРВИСЫ ----------
    api: 'anthropic' | 'gemini' | 'openai' (openai = формат OpenAI, его понимают
@@ -948,7 +1364,10 @@ function loadLocal(){
   return { students: [], settings: {} };
 }
 function save(){
-  if(USE_CLOUD){
+  if(demoMode) return;   // в демо ничего не сохраняем
+  if(me && sb){
+    pushTeacherData();
+  } else if(USE_CLOUD){
     saveToCloudSafe();
   } else {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -1063,25 +1482,480 @@ function showSyncStatus(state, msg){
   }
 }
 
+/* =======================================================================
+   АККАУНТЫ: вход, роли, работа с базой Supabase
+   ======================================================================= */
+let sb = null;              // клиент Supabase
+let me = null;              // профиль вошедшего: { id, role, name }
+let myStudentRow = null;    // для ученика — его карточка у преподавателя
+let authMode = 'login';
+
+function hasBackend(){ return !!(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase); }
+
+function initSupabase(){
+  if(!hasBackend()) return null;
+  if(!sb) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return sb;
+}
+
+/* Логин превращаем в служебный адрес: Supabase хранит учётные записи по
+   e-mail, а вводить настоящую почту мы никого не заставляем. */
+function loginToEmail(login, domain){
+  return String(login||'').trim().toLowerCase().replace(/[^a-z0-9_.-]/g,'')
+    + '@' + (domain || 'tutor.local');
+}
+
+function setAuthMode(mode){
+  authMode = mode;
+  document.querySelectorAll('#authRoleRow .seg')
+    .forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  document.getElementById('authNameWrap').style.display = mode==='register' ? 'block' : 'none';
+  document.getElementById('authRegNote').style.display = mode==='register' ? 'block' : 'none';
+  document.getElementById('authSubmitBtn').textContent = mode==='register' ? 'Создать аккаунт' : 'Войти';
+  document.getElementById('authError').textContent = '';
+}
+function authError(msg){ document.getElementById('authError').textContent = msg || ''; }
+
+async function submitAuth(){
+  authError('');
+  const login = document.getElementById('authLogin').value.trim();
+  const password = document.getElementById('authPassword').value;
+  if(!login || !password){ authError('Введите логин и пароль.'); return; }
+  // Только латиница: иначе разные логины схлопнутся в один и люди попадут
+  // в чужой аккаунт («Аня12» и «Петя12» дали бы одинаковый адрес).
+  if(!/^[A-Za-z0-9_.-]{3,}$/.test(login)){
+    authError('Логин — латиницей, минимум 3 символа. Можно цифры, точку, дефис и подчёркивание.');
+    return;
+  }
+  if(password.length < 6){ authError('Пароль должен быть не короче 6 символов.'); return; }
+
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true;
+  try{
+    const email = loginToEmail(login);
+    if(authMode === 'register'){
+      // Регистрируются только преподаватели. Аккаунт ученика создаёт
+      // преподаватель у себя в карточке — сам ученик завести его не может.
+      //
+      // Создаём через функцию, а не через signUp: адрес служебный, письмо
+      // подтверждения на него не дойдёт, а функция сразу помечает аккаунт
+      // подтверждённым. Так настройки почты в Supabase вообще не влияют.
+      const name = document.getElementById('authName').value.trim();
+      const resp = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/student-access', {
+        method:'POST',
+        headers:{
+          'content-type':'application/json',
+          'authorization':'Bearer ' + SUPABASE_ANON_KEY,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ action:'signup-teacher', login, password, name })
+      });
+      const j = await resp.json();
+      if(!resp.ok || !j.ok) throw new Error(j.error || 'Не удалось создать аккаунт');
+
+      const { error: e2 } = await sb.auth.signInWithPassword({ email, password });
+      if(e2) throw e2;
+    } else {
+      // Логины преподавателей и учеников живут на разных служебных доменах,
+      // поэтому пробуем оба — человеку про это знать незачем.
+      let { error } = await sb.auth.signInWithPassword({ email, password });
+      if(error){
+        const alt = await sb.auth.signInWithPassword({
+          email: loginToEmail(login, 'student.local'), password
+        });
+        if(alt.error) throw error;
+      }
+    }
+    await afterSignIn();
+  }catch(e){
+    const m = String(e.message||e);
+    if(/Invalid login/i.test(m)) authError('Неверный логин или пароль.');
+    else if(/already registered/i.test(m)) authError('Такой логин уже занят.');
+    else authError(m);
+  }
+  btn.disabled = false;
+}
+
+/* Вход через Telegram: подпись проверяет наша функция tg-auth. */
+async function loginWithTelegram(){
+  authError('');
+  try{
+    const resp = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/tg-auth', {
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'authorization':'Bearer ' + SUPABASE_ANON_KEY,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ initData: tg.initData, inviteCode: invite || undefined })
+    });
+    const json = await resp.json();
+    if(!resp.ok || !json.token_hash) throw new Error(json.error || 'Не удалось войти через Telegram');
+
+    const { error } = await sb.auth.verifyOtp({
+      type: 'magiclink', token_hash: json.token_hash
+    });
+    if(error) throw error;
+    await afterSignIn();
+  }catch(e){
+    authError(String(e.message||e));
+  }
+}
+
+async function logout(){
+  await sb.auth.signOut();
+  location.reload();
+}
+
+/* После успешного входа: узнаём роль и открываем нужный интерфейс. */
+async function afterSignIn(){
+  const { data: sess } = await sb.auth.getUser();
+  if(!sess || !sess.user){ showAuthScreen(); return; }
+
+  let { data: profile } = await sb.from('profiles').select('*').eq('id', sess.user.id).maybeSingle();
+  if(!profile){
+    await sb.from('profiles').insert({ id: sess.user.id, name:'', role:'teacher' });
+    profile = { id: sess.user.id, role:'teacher', name:'' };
+  }
+  me = profile;
+
+  sb.rpc('touch_activity').then(()=>{}).catch(()=>{});
+
+  document.getElementById('authScreen').style.display = 'none';
+  if(me.role === 'student'){
+    document.getElementById('studentApp').style.display = 'block';
+    await loadStudentCabinet();
+  } else {
+    document.getElementById('teacherApp').style.display = 'block';
+    await loadTeacherData();
+    normalize();
+    await migrateLocalDataIfAny();
+    switchView('students');
+  }
+}
+
+function showAuthScreen(){
+  document.getElementById('authScreen').style.display = 'block';
+  document.getElementById('teacherApp').style.display = 'none';
+  document.getElementById('studentApp').style.display = 'none';
+  document.getElementById('authTgBlock').style.display = (tg && tg.initData) ? 'block' : 'none';
+  setAuthMode('login');
+}
+
+/* ---------- ЧТЕНИЕ И ЗАПИСЬ ДАННЫХ ПРЕПОДАВАТЕЛЯ ---------- */
+async function loadTeacherData(){
+  const [{ data: students }, { data: docs }] = await Promise.all([
+    sb.from('students').select('*').eq('teacher_id', me.id).order('created_at'),
+    sb.from('teacher_docs').select('*').eq('teacher_id', me.id).maybeSingle()
+  ]);
+
+  const ids = (students||[]).map(s=>s.id);
+  let lessons = [], materials = [], submissions = [];
+  if(ids.length){
+    const [l, m, sub] = await Promise.all([
+      sb.from('lessons').select('*').in('student_id', ids),
+      sb.from('materials').select('*').in('student_id', ids),
+      sb.from('submissions').select('*').in('student_id', ids)
+    ]);
+    lessons = l.data || []; materials = m.data || []; submissions = sub.data || [];
+  }
+
+  data = {
+    students: (students||[]).map(s=>({
+      id: s.id, name: s.name, subject: s.subject, color: s.color,
+      inviteCode: s.invite_code, profileId: s.profile_id,
+      chat: s.chat || [],
+      lessons: lessons.filter(l=>l.student_id===s.id).map(rowToLesson)
+                      .map(l=>({ ...l, submission: submissions.find(x=>x.lesson_id===l.id) || null })),
+      materials: materials.filter(m=>m.student_id===s.id).map(m=>({
+        id: m.id, title: m.title, text: m.text, attachments: m.attachments||[],
+        createdAt: new Date(m.created_at).getTime()
+      }))
+    })),
+    subjects: (docs && docs.library) || [],
+    settings: (docs && docs.settings) || {}
+  };
+}
+function rowToLesson(l){
+  return {
+    id: l.id, date: l.date || '', time: l.time || '', duration: l.duration || 60,
+    topic: l.topic || '', price: l.price || 0, paid: !!l.paid, checked: !!l.checked,
+    homework: l.homework || '', solution: l.solution || '',
+    homeworkAttachments: l.homework_attachments || [],
+    solutionAttachments: l.solution_attachments || [],
+    recurrenceId: l.recurrence_id || null,
+    grade: l.grade || null,
+    gradeComment: l.grade_comment || '',
+    meetingUrl: l.meeting_url || '',
+    meetingId: l.meeting_id || ''
+  };
+}
+
+/* Сохраняем всё состояние целиком: данных немного, зато нет рассинхрона. */
+let saveInFlight = false, savePending = false;
+async function pushTeacherData(){
+  if(saveInFlight){ savePending = true; return; }
+  saveInFlight = true;
+  showSyncStatus('saving');
+  try{
+    await sb.from('teacher_docs').upsert({
+      teacher_id: me.id,
+      settings: data.settings,
+      library: data.subjects,
+      updated_at: new Date().toISOString()
+    });
+
+    const studentRows = data.students.map(s=>({
+      id: s.id, teacher_id: me.id, name: s.name, subject: s.subject || '',
+      color: s.color, chat: s.chat || []
+    }));
+    if(studentRows.length) await sb.from('students').upsert(studentRows);
+
+    const keepStudents = data.students.map(s=>s.id);
+    let del = sb.from('students').delete().eq('teacher_id', me.id);
+    if(keepStudents.length) del = del.not('id','in','(' + keepStudents.join(',') + ')');
+    await del;
+
+    const lessonRows = [], materialRows = [];
+    data.students.forEach(s=>{
+      (s.lessons||[]).forEach(l=>lessonRows.push({
+        id: l.id, student_id: s.id, date: l.date || null, time: l.time || null,
+        duration: l.duration || 60, topic: l.topic || '', price: l.price || 0,
+        paid: !!l.paid, checked: !!l.checked, homework: l.homework || '',
+        solution: l.solution || '',
+        homework_attachments: l.homeworkAttachments || [],
+        solution_attachments: l.solutionAttachments || [],
+        recurrence_id: l.recurrenceId || null,
+        grade: l.grade || null,
+        grade_comment: l.gradeComment || '',
+        meeting_url: l.meetingUrl || '',
+        meeting_id: l.meetingId || ''
+      }));
+      (s.materials||[]).forEach(m=>materialRows.push({
+        id: m.id, student_id: s.id, title: m.title || '', text: m.text || '',
+        attachments: m.attachments || []
+      }));
+    });
+
+    if(lessonRows.length) await sb.from('lessons').upsert(lessonRows);
+    if(materialRows.length) await sb.from('materials').upsert(materialRows);
+
+    if(keepStudents.length){
+      const keepLessons = lessonRows.map(l=>l.id);
+      let dl = sb.from('lessons').delete().in('student_id', keepStudents);
+      if(keepLessons.length) dl = dl.not('id','in','(' + keepLessons.join(',') + ')');
+      await dl;
+
+      const keepMaterials = materialRows.map(m=>m.id);
+      let dm = sb.from('materials').delete().in('student_id', keepStudents);
+      if(keepMaterials.length) dm = dm.not('id','in','(' + keepMaterials.join(',') + ')');
+      await dm;
+    }
+
+    showSyncStatus('ok');
+    syncReminders();
+  }catch(e){
+    console.error(e);
+    showSyncStatus('error', e.message);
+  }
+  saveInFlight = false;
+  if(savePending){ savePending = false; pushTeacherData(); }
+}
+
+/* Разовый перенос данных из старой локальной версии. */
+async function migrateLocalDataIfAny(){
+  if(data.students.length) return;
+  let old = null;
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) old = JSON.parse(raw);
+  }catch(e){}
+  if(!old || !(old.students||[]).length) return;
+  if(!confirm('Найдены занятия из прежней версии. Перенести их в ваш аккаунт?')) return;
+
+  old.students.forEach(s=>{
+    s.id = uuid();
+    (s.lessons||[]).forEach(l=>{ l.id = uuid(); });
+    (s.materials||[]).forEach(m=>{ m.id = uuid(); });
+  });
+  data.students = old.students;
+  if(old.subjects) data.subjects = old.subjects;
+  if(old.settings) data.settings = { ...old.settings, ...data.settings };
+  normalize();
+  await pushTeacherData();
+  notifyToast('Данные перенесены в аккаунт.');
+  switchView('students');
+}
+
+/* Supabase ждёт настоящие UUID — свои короткие id для базы не годятся. */
+function uuid(){
+  if(crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0, v = c==='x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+/* =======================================================================
+   ДЕМО-РЕЖИМ
+   Позволяет посмотреть оба интерфейса без базы и регистрации.
+   Ничего не сохраняется: после перезагрузки данные снова исходные.
+   ======================================================================= */
+let demoMode = null;   // null | 'teacher' | 'student'
+
+function demoDate(shiftDays){
+  const d = new Date();
+  d.setDate(d.getDate() + shiftDays);
+  return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function buildDemoData(){
+  const artem = uuid(), dania = uuid(), lena = uuid();
+  return {
+    students: [
+      { id: artem, name:'Артём Волков', subject:'Математика, ЕГЭ', color:COLORS[0], chat:[], materials:[
+          { id:uuid(), title:'Разбор варианта №14', text:'Ключевые ошибки: невнимательность в №12, забывает про ОДЗ.', attachments:[], createdAt:Date.now() }
+        ],
+        lessons:[
+          { id:uuid(), date:demoDate(-9),  time:'16:00', duration:90, topic:'Производная и касательная', price:2000, paid:true,  checked:true,
+            grade:5, gradeComment:'Отличная работа, аккуратное оформление.',
+            meetingUrl:'https://zoom.us/j/9876543210',
+            homework:'№№ 12–18 из сборника, разобрать задачу про касательную.', solution:'12) x=2; 13) y=3x−1', homeworkAttachments:[], solutionAttachments:[], recurrenceId:null,
+            submission:{ id:uuid(), text:'Всё решил, кроме 17 — не понял условие.', attachments:[{id:uuid(),kind:'link',url:'https://example.com/hw',name:'example.com/hw'}] } },
+          { id:uuid(), date:demoDate(-5),  time:'16:00', duration:90, topic:'Первообразная', price:2000, paid:true,  checked:false,
+            grade:null, gradeComment:'', meetingUrl:'https://zoom.us/j/9876543210',
+            homework:'§14, задачи 3–11. Проверить ответы по таблице.', solution:'', homeworkAttachments:[], solutionAttachments:[], recurrenceId:null,
+            submission:{ id:uuid(), text:'Сдаю. В №9 не уверен в отборе корней.', attachments:[] } },
+          { id:uuid(), date:demoDate(-2),  time:'16:00', duration:90, topic:'Тригонометрические уравнения', price:2000, paid:false, checked:false,
+            homework:'Вариант 7 целиком. Особое внимание — отбор корней.', solution:'', homeworkAttachments:[], solutionAttachments:[], recurrenceId:null,
+            submission:null },
+          { id:uuid(), date:demoDate(-1),  time:'16:00', duration:90, topic:'Отбор корней на окружности', price:2000, paid:true, checked:true,
+            grade:4, gradeComment:'Стало заметно лучше!', meetingUrl:'https://zoom.us/j/9876543210',
+            homework:'Задачи 5–12, обязательно с единичной окружностью.', solution:'', homeworkAttachments:[], solutionAttachments:[], recurrenceId:null,
+            submission:{ id:uuid(), text:'Сделал все, окружность рисовал к каждой.', attachments:[] } },
+          { id:uuid(), date:demoDate(1),   time:'16:00', duration:90, topic:'', price:2000, paid:false, checked:false,
+            homework:'', solution:'', homeworkAttachments:[], solutionAttachments:[], recurrenceId:null, submission:null }
+        ] },
+      { id: dania, name:'Даня Орлов', subject:'Физика', color:COLORS[1], chat:[], materials:[],
+        lessons:[
+          { id:uuid(), date:demoDate(-5), time:'18:30', duration:60, topic:'Законы Ньютона', price:1500, paid:true, checked:true, grade:3, gradeComment:'Есть ошибки в рисунках сил.',
+            homework:'Задачи 4.1–4.9, письменно с рисунками.', solution:'', homeworkAttachments:[], solutionAttachments:[], recurrenceId:null, submission:null },
+          { id:uuid(), date:demoDate(2),  time:'18:30', duration:60, topic:'', price:1500, paid:false, checked:false,
+            homework:'', solution:'', homeworkAttachments:[], solutionAttachments:[], recurrenceId:null, submission:null }
+        ] },
+      { id: lena, name:'Лена Смирнова', subject:'Английский', color:COLORS[4], chat:[], materials:[],
+        lessons:[
+          { id:uuid(), date:demoDate(-1), time:'11:00', duration:60, topic:'Present Perfect', price:1800, paid:true, checked:true, grade:4, gradeComment:'Хорошо, но следи за артиклями.',
+            homework:'Unit 5, ex. 3–7. Выписать 20 новых слов.', solution:'', homeworkAttachments:[], solutionAttachments:[], recurrenceId:null,
+            submission:{ id:uuid(), text:'Готово, слова выписала.', attachments:[] } },
+          { id:uuid(), date:demoDate(4),  time:'11:00', duration:60, topic:'', price:1800, paid:false, checked:false,
+            homework:'', solution:'', homeworkAttachments:[], solutionAttachments:[], recurrenceId:null, submission:null }
+        ] }
+    ],
+    subjects: [
+      { id:uuid(), name:'Математика', color:COLORS[0], topics:[
+        { id:uuid(), title:'Квадратные уравнения', kind:'material', text:'Дискриминант D = b² − 4ac.\nЕсли D > 0 — два корня, D = 0 — один, D < 0 — корней нет.', attachments:[], createdAt:Date.now() },
+        { id:uuid(), title:'Задачи на движение', kind:'tasks', text:'1) Из A в B выехал велосипедист…\n2) Катер прошёл 30 км по течению…', attachments:[], createdAt:Date.now() }
+      ]},
+      { id:uuid(), name:'Физика', color:COLORS[1], topics:[
+        { id:uuid(), title:'Кинематика: формулы', kind:'material', text:'v = v₀ + at\nS = v₀t + at²/2', attachments:[], createdAt:Date.now() }
+      ]}
+    ],
+    settings: {}
+  };
+}
+
+function startDemo(role){
+  demoMode = role;
+  data = buildDemoData();
+  normalize();
+  document.getElementById('authScreen').style.display = 'none';
+
+  if(role === 'student'){
+    const s = data.students[0];
+    myStudentRow = { id: s.id, name: s.name, subject: s.subject };
+    stuLessons = s.lessons.map(l=>({ ...l }));
+    me = { id:'demo', role:'student', name: s.name };
+    document.getElementById('studentApp').style.display = 'block';
+    document.getElementById('stuSub').textContent = s.subject;
+    renderStudentCabinet();
+  } else {
+    me = { id:'demo', role:'teacher', name:'Демо' };
+    document.getElementById('teacherApp').style.display = 'block';
+    switchView('students');
+  }
+  showDemoBanner();
+}
+
+function showDemoBanner(){
+  if(document.getElementById('demoBanner')) return;
+  const b = document.createElement('div');
+  b.id = 'demoBanner';
+  b.innerHTML = `Демо-режим — данные вымышленные, ничего не сохраняется.
+    <button class="btn-ghost btn-sm" onclick="location.href=location.pathname">Выйти</button>`;
+  document.body.appendChild(b);
+}
+
 async function init(){
-  if(USE_CLOUD){
-    document.getElementById('cloudNote').style.display = 'block';
+  if(tg){
     try{ tg.ready(); }catch(e){}
     try{ tg.expand(); }catch(e){}
     try{ tg.setHeaderColor && tg.setHeaderColor('#0f1117'); }catch(e){}
     try{ tg.setBackgroundColor && tg.setBackgroundColor('#0f1117'); }catch(e){}
     try{ tg.disableVerticalSwipes && tg.disableVerticalSwipes(); }catch(e){}
-    data = await loadFromCloud();
-  } else {
-    data = loadLocal();
   }
-  normalize();
-  switchView('students');
-  syncReminders();
+
+  const params = new URLSearchParams(location.search);
+
+  // Демо: ?demo=teacher или ?demo=student — посмотреть экраны без базы.
+  const demo = params.get('demo');
+  if(demo === 'teacher' || demo === 'student'){
+    startDemo(demo);
+    return;
+  }
+
+  // Без настроенного Supabase приложение работает по-старому, только для себя.
+  if(!hasBackend()){
+    data = USE_CLOUD ? await loadFromCloud() : loadLocal();
+    normalize();
+    document.getElementById('teacherApp').style.display = 'block';
+    switchView('students');
+    return;
+  }
+
+  initSupabase();
+
+  // Ученик пришёл по ссылке от преподавателя.
+  const join = params.get('join');
+  if(join){
+    await tryLinkLogin(join);
+    return;
+  }
+
+  const { data: sess } = await sb.auth.getSession();
+  if(sess && sess.session){
+    await afterSignIn();
+  } else if(tg && tg.initData){
+    // В Telegram преподаватель входит молча, спрашивать логин незачем.
+    showAuthScreen();
+    await loginWithTelegram();
+  } else {
+    showAuthScreen();
+  }
 }
 
 function normalize(){
   if(!data.students) data.students = [];
+  if(!data.subjects) data.subjects = [];   // база знаний: предметы → темы → материалы
+  data.subjects.forEach(sub=>{
+    if(!sub.topics) sub.topics = [];
+    if(!sub.color) sub.color = COLORS[0];
+    sub.topics.forEach(t=>{
+      if(!t.attachments) t.attachments = [];
+      if(t.text === undefined) t.text = '';
+      if(!t.kind) t.kind = 'material';     // 'material' | 'tasks'
+    });
+  });
   if(!data.settings) data.settings = {};
   const st = data.settings;
   // Рабочий день и длительность занятия — нужны для статистики и свободных окон
@@ -1115,7 +1989,8 @@ function normalize(){
   });
 }
 function uid(){
-  return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  // UUID, потому что эти же id становятся ключами строк в базе
+  return uuid();
 }
 function initials(name){
   return name.trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
@@ -1165,6 +2040,8 @@ function hideAllViews(){
   document.getElementById('listView').style.display='none';
   document.getElementById('calendarView').style.display='none';
   document.getElementById('statsView').style.display='none';
+  document.getElementById('knowledgeView').style.display='none';
+  document.getElementById('subjectView').style.display='none';
   document.getElementById('detailView').style.display='none';
 }
 function switchView(view){
@@ -1179,6 +2056,9 @@ function switchView(view){
   } else if(view==='stats'){
     document.getElementById('statsView').style.display='block';
     renderStats();
+  } else if(view==='knowledge'){
+    document.getElementById('knowledgeView').style.display='block';
+    renderSubjects();
   }
 }
 function openDetail(id, from){
@@ -1238,16 +2118,107 @@ function renderGrid(){
 }
 
 /* ---------- ATTACHMENTS (shared: hw / sol / mat) ---------- */
-function onFileSelected(key, fileList){
-  Array.from(fileList).forEach(file=>{
-    const reader = new FileReader();
-    reader.onload = e=>{
-      const kind = file.type.startsWith('image/') ? 'image' : 'file';
-      drafts[key].push({ id: uid(), kind, data: e.target.result, name: file.name });
-      renderAttachmentChips(key);
+/* Фото ужимаем перед отправкой: снимок с телефона весит мегабайты,
+   а для домашнего задания хватает длинной стороны в 1600 точек. */
+const IMAGE_MAX_SIDE = 1600;
+const IMAGE_QUALITY = 0.82;
+
+function compressImage(file){
+  return new Promise((resolve)=>{
+    if(!file.type.startsWith('image/') || file.type === 'image/gif'){ resolve(file); return; }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      URL.revokeObjectURL(url);
+      let { width:w, height:h } = img;
+      const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(w, h));
+      if(scale === 1 && file.size < 400*1024){ resolve(file); return; }
+      w = Math.round(w*scale); h = Math.round(h*scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob=>{
+        resolve(blob && blob.size < file.size
+          ? new File([blob], file.name.replace(/\.[^.]+$/,'') + '.jpg', { type:'image/jpeg' })
+          : file);
+      }, 'image/jpeg', IMAGE_QUALITY);
     };
-    reader.readAsDataURL(file);
+    img.onerror = ()=>{ URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
   });
+}
+
+/* Куда складывать файл: папка соответствует ученику, по ней же
+   проверяются права доступа в базе. */
+function attachmentFolder(){
+  if(me && me.role === 'student' && myStudentRow) return myStudentRow.id;
+  const s = getCurrentStudent();
+  if(s) return s.id;
+  return (data.students[0] && data.students[0].id) || null;
+}
+
+async function onFileSelected(key, fileList){
+  const files = Array.from(fileList);
+  const useStorage = !!(sb && me && !demoMode && attachmentFolder());
+
+  for(const original of files){
+    const file = await compressImage(original);
+
+    if(useStorage){
+      const ext = (file.name.match(/\.([a-z0-9]+)$/i) || [,'bin'])[1].toLowerCase();
+      const path = `${attachmentFolder()}/${uuid()}.${ext}`;
+      const placeholder = { id: uid(), kind: file.type.startsWith('image/') ? 'image' : 'file',
+                            path, name: original.name, uploading: true };
+      drafts[key].push(placeholder);
+      renderAttachmentChips(key);
+      try{
+        const { error } = await sb.storage.from('attachments')
+          .upload(path, file, { contentType: file.type, upsert: false });
+        if(error) throw error;
+        delete placeholder.uploading;
+      }catch(e){
+        drafts[key] = drafts[key].filter(a=>a.id !== placeholder.id);
+        notifyToast('Не удалось загрузить «' + original.name + '»: ' + (e.message||e));
+      }
+      renderAttachmentChips(key);
+    } else {
+      // Демо и работа без базы — держим файл прямо в памяти
+      const dataUrl = await new Promise(res=>{
+        const r = new FileReader(); r.onload = e=>res(e.target.result); r.readAsDataURL(file);
+      });
+      drafts[key].push({ id: uid(), kind: file.type.startsWith('image/') ? 'image' : 'file',
+                         data: dataUrl, name: original.name });
+      renderAttachmentChips(key);
+    }
+  }
+}
+
+/* Файлы лежат в закрытом хранилище, поэтому ссылки на них подписываются
+   на время. Кэшируем, чтобы не дёргать сервер на каждую перерисовку. */
+const signedUrlCache = new Map();
+async function signedUrl(path){
+  const hit = signedUrlCache.get(path);
+  if(hit && hit.expires > Date.now()) return hit.url;
+  const { data: res, error } = await sb.storage.from('attachments').createSignedUrl(path, 3600);
+  if(error || !res) return null;
+  signedUrlCache.set(path, { url: res.signedUrl, expires: Date.now() + 55*60*1000 });
+  return res.signedUrl;
+}
+/* Подставляем адреса в уже отрисованную разметку. */
+async function hydrateAttachments(root){
+  if(!sb) return;
+  const nodes = (root||document).querySelectorAll('[data-att-path]:not([data-att-done])');
+  for(const el of nodes){
+    el.setAttribute('data-att-done','1');
+    const url = await signedUrl(el.getAttribute('data-att-path'));
+    if(!url) continue;
+    if(el.tagName === 'IMG') el.src = url;
+    else el.href = url;
+  }
+}
+if(typeof MutationObserver !== 'undefined'){
+  new MutationObserver(()=>hydrateAttachments(document))
+    .observe(document.documentElement, { childList:true, subtree:true });
 }
 function addLinkAttachment(key, url){
   if(!url || !url.trim()) return;
@@ -1324,22 +2295,33 @@ function renderAttachmentChips(key){
     return;
   }
   c.innerHTML = drafts[key].map(a=>{
+    const rm = `<button type="button" onclick="removeAttachment('${key}','${a.id}')">✕</button>`;
+    if(a.uploading){
+      return `<span class="chip">⏳ ${escapeHtml(a.name)}${rm}</span>`;
+    }
     if(a.kind==='image'){
-      return `<span class="chip"><img src="${a.data}" alt=""><button type="button" onclick="removeAttachment('${key}','${a.id}')">✕</button></span>`;
+      return `<span class="chip"><img ${imgSrcAttr(a)} alt="">${rm}</span>`;
     } else if(a.kind==='file'){
-      return `<span class="chip"><a href="${a.data}" download="${escapeHtml(a.name)}">📄 ${escapeHtml(a.name)}</a><button type="button" onclick="removeAttachment('${key}','${a.id}')">✕</button></span>`;
+      return `<span class="chip"><a ${fileHrefAttr(a)} download="${escapeHtml(a.name)}">📄 ${escapeHtml(a.name)}</a>${rm}</span>`;
     } else {
-      return `<span class="chip"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">🔗 ${escapeHtml(a.name)}</a><button type="button" onclick="removeAttachment('${key}','${a.id}')">✕</button></span>`;
+      return `<span class="chip"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">🔗 ${escapeHtml(a.name)}</a>${rm}</span>`;
     }
   }).join('');
+}
+/* Файл может лежать в хранилище (path) или прямо в памяти (data). */
+function imgSrcAttr(a){
+  return a.path ? `data-att-path="${escapeHtml(a.path)}" src=""` : `src="${a.data}"`;
+}
+function fileHrefAttr(a){
+  return a.path ? `data-att-path="${escapeHtml(a.path)}" href="#"` : `href="${a.data}"`;
 }
 function renderAttachmentsView(atts){
   if(!atts || atts.length===0) return '';
   const inner = atts.map(a=>{
     if(a.kind==='image'){
-      return `<span class="chip"><a href="${a.data}" download="${escapeHtml(a.name||'photo.jpg')}" target="_blank" rel="noopener"><img src="${a.data}" alt=""></a></span>`;
+      return `<span class="chip"><a ${fileHrefAttr(a)} target="_blank" rel="noopener"><img ${imgSrcAttr(a)} alt=""></a></span>`;
     } else if(a.kind==='file'){
-      return `<span class="chip"><a href="${a.data}" download="${escapeHtml(a.name)}">📄 ${escapeHtml(a.name)}</a></span>`;
+      return `<span class="chip"><a ${fileHrefAttr(a)} download="${escapeHtml(a.name)}">📄 ${escapeHtml(a.name)}</a></span>`;
     } else {
       return `<span class="chip"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">🔗 ${escapeHtml(a.name)}</a></span>`;
     }
@@ -1356,9 +2338,61 @@ function renderDetail(){
   document.getElementById('detailName').textContent = s.name;
   document.getElementById('detailSubject').textContent = s.subject || 'Предмет не указан';
 
+  renderStudentStats(s);
   renderLessons(s);
   renderMaterials();
   renderChat();
+}
+
+/* Сводка по ученику — то же, что он видит у себя, только глазами преподавателя. */
+function studentSummary(s){
+  const lessons = s.lessons || [];
+  const withHw = lessons.filter(l=>l.homework || (l.homeworkAttachments||[]).length);
+  const graded = withHw.filter(l=>l.grade);
+  const avg = graded.length
+    ? (graded.reduce((a,l)=>a+l.grade,0) / graded.length)
+    : null;
+  const past = lessons.filter(l=>l.date && l.date <= todayStr());
+  return {
+    total: lessons.length,
+    past: past.length,
+    minutes: lessons.reduce((a,l)=>a+(l.duration || data.settings.defaultDuration),0),
+    submitted: withHw.filter(l=>l.submission).length,
+    withHw: withHw.length,
+    checked: withHw.filter(l=>l.checked).length,
+    pending: withHw.filter(l=>!l.checked).length,
+    grades: graded.map(l=>l.grade),
+    avg,
+    earned: lessons.filter(l=>l.paid).reduce((a,l)=>a+(Number(l.price)||0),0),
+    unpaid: lessons.filter(l=>!l.paid).reduce((a,l)=>a+(Number(l.price)||0),0)
+  };
+}
+function renderStudentStats(s){
+  const st = studentSummary(s);
+  const box = document.getElementById('studentStats');
+  if(!st.total){ box.innerHTML = ''; return; }
+
+  const g = computeGame(s.lessons || []);
+  const gotBadges = g.badges.filter(b=>b.got);
+
+  box.innerHTML = `
+    <div class="kpi accent"><div class="k-label">${g.icon} Уровень ${g.level}</div>
+      <div class="k-value">${g.xp}</div>
+      <div class="k-sub">${escapeHtml(g.name)} · очков</div>
+      <div class="load-bar"><span style="width:${Math.round(g.progress*100)}%"></span></div></div>
+    <div class="kpi ${g.streak>0?'good':''}"><div class="k-label">Серия</div>
+      <div class="k-value">${g.streak}${g.streak>0?' 🔥':''}</div>
+      <div class="k-sub">${gotBadges.length ? gotBadges.slice(-4).map(b=>b.icon).join(' ') : 'достижений пока нет'}</div></div>
+    <div class="kpi"><div class="k-label">Занятий</div><div class="k-value">${st.total}</div>
+      <div class="k-sub">проведено: ${st.past} · ${formatDuration(st.minutes)}</div></div>
+    <div class="kpi ${st.pending>0?'warn':'good'}"><div class="k-label">Домашние задания</div>
+      <div class="k-value">${st.checked}/${st.withHw}</div>
+      <div class="k-sub">${st.pending>0 ? st.pending+' ждут проверки' : 'всё проверено'}</div>
+      ${st.withHw ? `<div class="load-bar"><span style="width:${Math.round(st.checked/st.withHw*100)}%"></span></div>` : ''}</div>
+    <div class="kpi ${st.unpaid>0?'warn':'good'}"><div class="k-label">Оплата</div>
+      <div class="k-value">${st.unpaid.toLocaleString('ru-RU')} ₽</div>
+      <div class="k-sub">${st.unpaid>0 ? 'ожидает оплаты' : 'долгов нет'} · получено ${st.earned.toLocaleString('ru-RU')} ₽</div></div>
+  `;
 }
 
 function renderLessons(s){
@@ -1392,6 +2426,9 @@ function renderLessons(s){
         </div>
       </div>
       ${l.topic ? `<div class="lesson-topic"><span class="label">Тема: </span>${escapeHtml(l.topic)}</div>` : ''}
+      ${l.meetingUrl ? `<div class="lesson-topic"><a class="meet-link" href="${escapeHtml(l.meetingUrl)}" target="_blank" rel="noopener">🎥 Подключиться к занятию</a></div>` : ''}
+      ${l.grade ? `<div class="lesson-topic"><span class="grade-badge grade-${l.grade}">${GRADE_LABEL[l.grade]}</span>
+        <span class="muted-note"> +${XP_FOR_GRADE[l.grade]} очков${l.gradeComment ? ' — '+escapeHtml(l.gradeComment) : ''}</span></div>` : ''}
       ${hasHwContent ? `
       <div class="lesson-hw">
         <div class="hw-row">
@@ -1415,6 +2452,13 @@ function renderLessons(s){
             ${renderAttachmentsView(l.solutionAttachments)}
           </div>
         ` : ''}
+        ${l.submission ? `
+          <div class="submission-box">
+            <div class="hw-text">
+              <span class="label">✅ Ученик сдал работу</span>${escapeHtml(l.submission.text||'')}
+            </div>
+            ${renderAttachmentsView(l.submission.attachments)}
+          </div>` : ''}
       </div>` : ''}
     `;
     list.appendChild(el);
@@ -1659,18 +2703,257 @@ function clearTimePicker(){
   closeTimePicker();
 }
 
-/* ---------- ДЛИТЕЛЬНОСТЬ ЗАНЯТИЯ ---------- */
-let pickedDuration = 60;
-function pickDuration(min){
-  pickedDuration = min;
-  document.querySelectorAll('#lessonDurationRow .seg')
-    .forEach(b=>b.classList.toggle('on', Number(b.dataset.dur) === min));
+/* ---------- ДОСТУП ДЛЯ УЧЕНИКА ----------
+   Аккаунт ученика создаёт преподаватель: сам ученик зарегистрироваться
+   не может. Пароль показывается один раз. */
+let lastAccess = null;
+
+async function inviteStudent(){
+  const s = getCurrentStudent();
+  if(demoMode){
+    showAccessModal(s.name, 'demo_student', 'k7m2p4qh',
+      location.origin + location.pathname + '?join=demo-token');
+    return;
+  }
+  if(!sb || !me){ notifyToast('Доступ выдаётся только в аккаунте с подключённой базой.'); return; }
+  if(!confirm(`Выдать ${s.name} доступ в приложение?\n\nЕсли доступ уже выдавался, старый пароль перестанет работать.`)) return;
+
+  notifyToast('Создаём доступ…');
+  try{
+    const { data: sess } = await sb.auth.getSession();
+    const resp = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/student-access', {
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'authorization':'Bearer ' + (sess && sess.session ? sess.session.access_token : SUPABASE_ANON_KEY),
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action:'issue', studentId: s.id })
+    });
+    const j = await resp.json();
+    if(!resp.ok || !j.ok) throw new Error(j.error || 'Не удалось выдать доступ');
+
+    const link = location.origin + location.pathname + '?join=' + j.token;
+    showAccessModal(s.name, j.login, j.password, link);
+  }catch(e){
+    notifyToast('Ошибка: ' + (e.message||e));
+  }
 }
+
+function showAccessModal(studentName, login, password, link){
+  lastAccess = { studentName, login, password, link };
+  document.getElementById('accessLink').value = link;
+  document.getElementById('accessLogin').value = login;
+  document.getElementById('accessPassword').value = password;
+  openModal('accessModalOverlay');
+}
+function accessText(){
+  const a = lastAccess;
+  if(!a) return '';
+  return `${a.studentName}, вот доступ в наш дневник занятий.\n\n`
+    + `Ссылка (проще всего — просто открой её):\n${a.link}\n\n`
+    + `Если понадобится войти заново:\nЛогин: ${a.login}\nПароль: ${a.password}\n\n`
+    + `Там видно, что задано, что проверено и что оплачено. Туда же присылай выполненное ДЗ.`;
+}
+async function shareAccess(){
+  const text = accessText();
+  if(navigator.share){
+    try{ await navigator.share({ text }); return; }catch(e){ if(e && e.name==='AbortError') return; }
+  }
+  copyToClipboard(text, 'Скопировано — отправьте ученику.');
+}
+function copyAccess(){
+  copyToClipboard(accessText(), 'Скопировано — отправьте ученику.');
+}
+
+/* Ученик открыл ссылку вида ...?join=токен — впускаем без ввода пароля. */
+async function tryLinkLogin(token){
+  try{
+    const resp = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/student-access', {
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'authorization':'Bearer ' + SUPABASE_ANON_KEY,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action:'link', token })
+    });
+    const j = await resp.json();
+    if(!resp.ok || !j.token_hash) throw new Error(j.error || 'Ссылка недействительна');
+
+    const { error } = await sb.auth.verifyOtp({ type:'magiclink', token_hash: j.token_hash });
+    if(error) throw error;
+
+    history.replaceState({}, '', location.pathname);
+    await afterSignIn();
+    return true;
+  }catch(e){
+    showAuthScreen();
+    authError(String(e.message||e) + ' Попросите преподавателя выдать доступ заново.');
+    return false;
+  }
+}
+
+/* ---------- ДЛИТЕЛЬНОСТЬ ЗАНЯТИЯ ----------
+   Число вводится вручную, единица выбирается рядом. Значение всегда
+   хранится в минутах. Больше 24 часов не пропускаем. */
+const MAX_DURATION_MIN = 24 * 60;
+let pickedDuration = 60;
+let durationUnit = 'min';
+let defaultDurationUnit = 'min';
+
 function formatDuration(min){
-  if(!min) return '';
-  if(min % 60 === 0) return (min/60) + ' ч';
-  if(min < 60) return min + ' мин';
-  return (min/60).toFixed(1).replace('.',',') + ' ч';
+  min = Math.round(Number(min) || 0);
+  if(min <= 0) return '';
+  const h = Math.floor(min / 60), m = min % 60;
+  if(h === 0) return m + ' мин';
+  if(m === 0) return h + ' ч';
+  return h + ' ч ' + m + ' мин';
+}
+
+/* Приводим введённое к минутам с оглядкой на выбранную единицу. */
+function readDurationField(inputId, unit){
+  const raw = (document.getElementById(inputId).value || '').replace(/[^\d]/g,'');
+  if(!raw) return null;
+  let mins = unit === 'hour' ? Math.round(parseFloat(raw) * 60) : parseInt(raw, 10);
+  if(!isFinite(mins) || mins <= 0) return null;
+  return Math.min(mins, MAX_DURATION_MIN);
+}
+function syncDurationUI(inputId, hintId, unit, mins){
+  const input = document.getElementById(inputId);
+  const capped = mins === MAX_DURATION_MIN
+    && readDurationField(inputId, unit) === MAX_DURATION_MIN
+    && (unit === 'hour' ? Number(input.value) > 24 : Number(input.value) > MAX_DURATION_MIN);
+  if(capped) input.value = unit === 'hour' ? '24' : String(MAX_DURATION_MIN);
+
+  const hint = document.getElementById(hintId);
+  if(!hint) return;
+  if(!mins){ hint.textContent = 'Укажите длительность.'; return; }
+  // Подсказываем разбор только когда он не очевиден: 96 мин → 1 ч 36 мин
+  hint.textContent = (unit === 'min' && mins >= 60)
+    ? '= ' + formatDuration(mins)
+    : (capped ? 'Максимум — 24 часа.' : '');
+}
+
+function onDurationInput(){
+  const mins = readDurationField('lessonDurationValue', durationUnit);
+  pickedDuration = mins || 0;
+  syncDurationUI('lessonDurationValue', 'durationHint', durationUnit, pickedDuration);
+}
+function pickDurationUnit(unit){
+  // Пересчитываем уже введённое, чтобы смысл числа не менялся молча
+  const cur = pickedDuration;
+  durationUnit = unit;
+  document.querySelectorAll('.dur-row .seg[data-unit]').forEach(b=>{
+    if(b.closest('.field').querySelector('#lessonDurationValue'))
+      b.classList.toggle('on', b.dataset.unit === unit);
+  });
+  if(cur){
+    document.getElementById('lessonDurationValue').value =
+      unit === 'hour' ? String(+(cur/60).toFixed(2)).replace(/\.?0+$/,'') : String(cur);
+  }
+  onDurationInput();
+}
+function setDurationField(mins){
+  pickedDuration = Math.min(Math.max(1, Math.round(mins||60)), MAX_DURATION_MIN);
+  // Целые часы удобнее показывать в часах
+  durationUnit = (pickedDuration % 60 === 0 && pickedDuration >= 60) ? 'hour' : 'min';
+  document.getElementById('lessonDurationValue').value =
+    durationUnit === 'hour' ? String(pickedDuration/60) : String(pickedDuration);
+  document.querySelectorAll('#lessonDurationValue')[0]
+    .closest('.dur-row').querySelectorAll('.seg[data-unit]')
+    .forEach(b=>b.classList.toggle('on', b.dataset.unit === durationUnit));
+  syncDurationUI('lessonDurationValue', 'durationHint', durationUnit, pickedDuration);
+}
+
+function onDefaultDurationInput(){
+  const mins = readDurationField('defaultDurationValue', defaultDurationUnit);
+  draftDefaultDuration = mins || 60;
+  syncDurationUI('defaultDurationValue', 'defaultDurationHint', defaultDurationUnit, mins);
+}
+function pickDefaultDurationUnit(unit){
+  const cur = draftDefaultDuration;
+  defaultDurationUnit = unit;
+  document.getElementById('defaultDurationValue').closest('.dur-row')
+    .querySelectorAll('.seg[data-unit]')
+    .forEach(b=>b.classList.toggle('on', b.dataset.unit === unit));
+  if(cur){
+    document.getElementById('defaultDurationValue').value =
+      unit === 'hour' ? String(+(cur/60).toFixed(2)).replace(/\.?0+$/,'') : String(cur);
+  }
+  onDefaultDurationInput();
+}
+function setDefaultDurationField(mins){
+  draftDefaultDuration = Math.min(Math.max(1, Math.round(mins||60)), MAX_DURATION_MIN);
+  defaultDurationUnit = (draftDefaultDuration % 60 === 0 && draftDefaultDuration >= 60) ? 'hour' : 'min';
+  document.getElementById('defaultDurationValue').value =
+    defaultDurationUnit === 'hour' ? String(draftDefaultDuration/60) : String(draftDefaultDuration);
+  document.getElementById('defaultDurationValue').closest('.dur-row')
+    .querySelectorAll('.seg[data-unit]')
+    .forEach(b=>b.classList.toggle('on', b.dataset.unit === defaultDurationUnit));
+}
+
+/* ---------- ОЦЕНКА ЗА ДЗ ---------- */
+let pickedGrade = 0;
+function pickGrade(g){
+  pickedGrade = g;
+  document.querySelectorAll('#gradeRow .seg')
+    .forEach(b=>b.classList.toggle('on', Number(b.dataset.grade) === g));
+  const hint = document.getElementById('gradeXpHint');
+  if(hint){
+    hint.textContent = g
+      ? `Ученик получит +${XP_FOR_GRADE[g]} очков за это задание.`
+      : 'Очки за оценку начислены не будут.';
+  }
+}
+
+/* ---------- ССЫЛКА НА ВИДЕОВСТРЕЧУ ---------- */
+function openMeetingMenu(){
+  const el = document.getElementById('meetingPlatforms');
+  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+}
+function openPlatform(url){
+  // Открываем сервис в новой вкладке: ссылку оттуда вставите в поле выше
+  if(tg && tg.openLink) tg.openLink(url); else window.open(url, '_blank');
+  document.getElementById('meetingHint').textContent =
+    'Создайте встречу на сайте и вставьте её ссылку в поле выше.';
+}
+async function createZoomMeeting(){
+  const hint = document.getElementById('meetingHint');
+  if(demoMode){
+    document.getElementById('lessonMeetingUrl').value = 'https://zoom.us/j/9876543210';
+    hint.textContent = 'В демо ссылка вымышленная.';
+    return;
+  }
+  if(!sb || !me){ hint.textContent = 'Автосоздание работает только в аккаунте с базой.'; return; }
+  if(!pickedDate){ hint.textContent = 'Сначала укажите дату занятия.'; return; }
+
+  hint.textContent = 'Создаём встречу в Zoom…';
+  try{
+    const { data: sess } = await sb.auth.getSession();
+    const resp = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/zoom-meeting', {
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'authorization':'Bearer ' + (sess && sess.session ? sess.session.access_token : SUPABASE_ANON_KEY),
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        topic: 'Занятие' + (document.getElementById('lessonTopicInput').value ? ': ' + document.getElementById('lessonTopicInput').value : ''),
+        date: pickedDate,
+        time: pickedTime || '09:00',
+        duration: pickedDuration || 60,
+        tzOffsetMinutes: new Date().getTimezoneOffset()
+      })
+    });
+    const j = await resp.json();
+    if(!resp.ok || !j.join_url) throw new Error(j.error || 'Zoom не ответил');
+    document.getElementById('lessonMeetingUrl').value = j.join_url;
+    document.getElementById('meetingPlatforms').style.display = 'none';
+    hint.textContent = 'Встреча создана. На бесплатном тарифе Zoom она прервётся через 40 минут.';
+  }catch(e){
+    hint.textContent = 'Не получилось: ' + (e.message||e) + '. Можно вставить ссылку вручную.';
+  }
 }
 
 /* ---------- LESSON CRUD ---------- */
@@ -1685,7 +2968,14 @@ function openLessonModal(id, prefillDate){
   document.getElementById('lessonModalTitle').textContent = l ? 'Изменить занятие' : 'Новое занятие';
   setPickedDate(l ? (l.date||'') : (prefillDate || todayStr()));
   setPickedTime(l ? (l.time||'') : '');
-  pickDuration(l ? (l.duration || data.settings.defaultDuration) : data.settings.defaultDuration);
+  setDurationField(l ? (l.duration || data.settings.defaultDuration) : data.settings.defaultDuration);
+  document.getElementById('lessonMeetingUrl').value = l ? (l.meetingUrl||'') : '';
+  document.getElementById('meetingPlatforms').style.display = 'none';
+  document.getElementById('meetingHint').textContent = '';
+  pickGrade(l ? (l.grade || 0) : 0);
+  document.getElementById('lessonGradeComment').value = l ? (l.gradeComment||'') : '';
+  // Оценка имеет смысл только у существующего занятия с домашним заданием
+  document.getElementById('gradeFieldWrap').style.display = l ? 'block' : 'none';
   document.getElementById('lessonTopicInput').value = l ? (l.topic||'') : '';
   document.getElementById('lessonPriceInput').value = l && l.price ? l.price : '';
   document.getElementById('lessonHwInput').value = l ? (l.homework||'') : '';
@@ -1715,10 +3005,13 @@ function saveLesson(){
   const price = priceRaw ? parseInt(priceRaw, 10) : 0;
   const homework = document.getElementById('lessonHwInput').value.trim();
   const solution = document.getElementById('lessonSolutionInput').value.trim();
+  const meetingUrl = document.getElementById('lessonMeetingUrl').value.trim();
+  const grade = pickedGrade || null;
+  const gradeComment = document.getElementById('lessonGradeComment').value.trim();
 
   if(editingLessonId){
     const l = s.lessons.find(x=>x.id===editingLessonId);
-    Object.assign(l, { date, time, topic, price, duration: pickedDuration, homework, solution, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol });
+    Object.assign(l, { date, time, topic, price, duration: pickedDuration, meetingUrl, grade, gradeComment, homework, solution, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol });
   } else {
     const isRecurring = document.getElementById('lessonRecurringCheckbox').checked;
 
@@ -1733,7 +3026,7 @@ function saveLesson(){
       while(count < OCCURRENCES){
         const occDate = toDateStr(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
         s.lessons.push({
-          id: uid(), date: occDate, time, topic, price, duration: pickedDuration, homework, solution,
+          id: uid(), date: occDate, time, topic, price, duration: pickedDuration, meetingUrl, grade:null, gradeComment:'', homework, solution,
           checked:false, paid:false,
           homeworkAttachments: JSON.parse(JSON.stringify(drafts.hw)),
           solutionAttachments: JSON.parse(JSON.stringify(drafts.sol)),
@@ -1743,7 +3036,7 @@ function saveLesson(){
         count++;
       }
     } else {
-      s.lessons.push({ id: uid(), date, time, topic, price, duration: pickedDuration, homework, solution, checked:false, paid:false, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol, recurrenceId: null });
+      s.lessons.push({ id: uid(), date, time, topic, price, duration: pickedDuration, meetingUrl, grade:null, gradeComment:'', homework, solution, checked:false, paid:false, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol, recurrenceId: null });
     }
   }
   save();
@@ -1860,14 +3153,21 @@ function dataUrlToFile(dataUrl, filename){
   return new File([bytes], safeName, { type: mime });
 }
 async function shareWithAttachments(text, attachments){
-  const mediaAtts = (attachments||[]).filter(a=>(a.kind==='image' || a.kind==='file') && a.data);
+  const mediaAtts = (attachments||[]).filter(a=>(a.kind==='image' || a.kind==='file') && (a.data || a.path));
   const manualNote = 'Чтобы отправить фото отдельно: откройте превью фото (нажмите на него), сохраните и перешлите вручную в чат с учеником.';
 
   if(navigator.share){
     let files = [];
     if(mediaAtts.length){
       try{
-        files = await Promise.all(mediaAtts.map((a,i)=>dataUrlToFile(a.data, a.name || ('attachment-'+i))));
+        files = await Promise.all(mediaAtts.map(async (a,i)=>{
+          const nm = a.name || ('attachment-'+i);
+          if(a.data) return dataUrlToFile(a.data, nm);
+          // файл из хранилища — скачиваем по временной ссылке
+          const url = await signedUrl(a.path);
+          const blob = await (await fetch(url)).blob();
+          return new File([blob], nm, { type: blob.type });
+        }));
       }catch(e){ files = []; }
     }
     const canShareFiles = files.length>0 && navigator.canShare && navigator.canShare({ files });
@@ -2183,18 +3483,13 @@ function renderWorkDays(){
   document.querySelectorAll('#workDaysRow .seg')
     .forEach(b=>b.classList.toggle('on', draftWorkDays.includes(Number(b.dataset.day))));
 }
-function pickDefaultDuration(min){
-  draftDefaultDuration = min;
-  document.querySelectorAll('#defaultDurationRow .seg')
-    .forEach(b=>b.classList.toggle('on', Number(b.dataset.dur) === min));
-}
 function openSettingsModal(){
   const provider = data.settings.provider || 'anthropic';
   document.getElementById('workStartInput').value = data.settings.workStart || '10:00';
   document.getElementById('workEndInput').value = data.settings.workEnd || '21:00';
   draftWorkDays = (data.settings.workDays || []).slice();
   renderWorkDays();
-  pickDefaultDuration(data.settings.defaultDuration || 60);
+  setDefaultDurationField(data.settings.defaultDuration || 60);
   const sel = document.getElementById('providerSelect');
   sel.innerHTML = Object.keys(AI_PROVIDERS)
     .map(k=>`<option value="${k}">${escapeHtml(AI_PROVIDERS[k].label)}</option>`).join('');
@@ -2398,6 +3693,670 @@ async function addToAppleCalendar(lessonId){
 }
 
 /* =======================================================================
+   ИГРОВОЙ ПРОГРЕСС
+   Вместо средней оценки — очки, уровни, серия и достижения.
+   Всё считается из занятий, ничего дополнительно хранить не нужно.
+   ======================================================================= */
+const XP_FOR_GRADE = { 5: 50, 4: 35, 3: 20, 2: 10 };
+const GRADE_LABEL  = { 5:'🌟 Отлично', 4:'👍 Хорошо', 3:'🙂 Неплохо', 2:'😕 Слабо' };
+const XP_SUBMITTED = 10;   // просто за сданную работу
+const XP_LESSON    = 15;   // за проведённое занятие
+
+const LEVELS = [
+  { name:'Новичок',   icon:'🌱' },
+  { name:'Ученик',    icon:'📗' },
+  { name:'Знаток',    icon:'📘' },
+  { name:'Умница',    icon:'⭐' },
+  { name:'Мастер',    icon:'🏅' },
+  { name:'Эксперт',   icon:'🎖' },
+  { name:'Гуру',      icon:'👑' },
+  { name:'Легенда',   icon:'🔥' }
+];
+// Порог входа в уровень n (n с единицы): 50n² + 50n
+function xpForLevel(n){ return 50*n*n + 50*n; }
+function levelFromXp(xp){
+  let n = 1;
+  while(n < LEVELS.length && xp >= xpForLevel(n)) n++;
+  const prev = n === 1 ? 0 : xpForLevel(n-1);
+  const next = n < LEVELS.length ? xpForLevel(n) : null;
+  return {
+    level: n,
+    ...LEVELS[n-1],
+    xpInLevel: xp - prev,
+    xpToNext: next === null ? null : next - prev,
+    progress: next === null ? 1 : (xp - prev) / (next - prev)
+  };
+}
+
+function lessonXp(l){
+  let xp = 0;
+  const past = l.date && l.date <= todayStr();
+  if(past) xp += XP_LESSON;
+  const hasHw = l.homework || (l.homeworkAttachments||[]).length;
+  if(hasHw && l.submission) xp += XP_SUBMITTED;
+  if(hasHw && l.grade) xp += (XP_FOR_GRADE[l.grade] || 0);
+  return xp;
+}
+
+function computeGame(lessons){
+  const list = (lessons||[]).slice()
+    .filter(l=>l.date)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  const xp = list.reduce((sum,l)=>sum + lessonXp(l), 0);
+  const lvl = levelFromXp(xp);
+
+  // Серия: сколько последних заданных ДЗ подряд сдано (считаем с конца)
+  const hwPast = list.filter(l=>(l.homework || (l.homeworkAttachments||[]).length) && l.date <= todayStr());
+  let streak = 0;
+  for(let i = hwPast.length - 1; i >= 0; i--){
+    if(hwPast[i].submission) streak++; else break;
+  }
+  let best = 0, run = 0;
+  hwPast.forEach(l=>{ if(l.submission){ run++; best = Math.max(best, run); } else run = 0; });
+
+  const done = hwPast.filter(l=>l.submission).length;
+  const perfect = list.filter(l=>l.grade === 5).length;
+  const lessonsPast = list.filter(l=>l.date <= todayStr()).length;
+
+  const badges = [
+    { id:'first',   icon:'🎯', name:'Первый шаг',    hint:'сдать первое задание',        got: done >= 1 },
+    { id:'five',    icon:'🖐',  name:'Пятёрка работ', hint:'сдать 5 заданий',             got: done >= 5 },
+    { id:'ten',     icon:'💪', name:'Десятка',       hint:'сдать 10 заданий',            got: done >= 10 },
+    { id:'streak3', icon:'🔥', name:'Три подряд',    hint:'сдать 3 задания подряд',      got: best >= 3 },
+    { id:'streak7', icon:'⚡️', name:'Неделя огня',   hint:'сдать 7 заданий подряд',      got: best >= 7 },
+    { id:'ace',     icon:'⭐', name:'Отличник',      hint:'получить высшую оценку',      got: perfect >= 1 },
+    { id:'ace5',    icon:'🌟', name:'Пять звёзд',    hint:'пять высших оценок',          got: perfect >= 5 },
+    { id:'reg10',   icon:'📅', name:'Постоянство',   hint:'провести 10 занятий',         got: lessonsPast >= 10 },
+    { id:'reg30',   icon:'🏆', name:'Марафон',       hint:'провести 30 занятий',         got: lessonsPast >= 30 }
+  ];
+
+  // Очки по неделям — для графика прогресса
+  const weeks = [];
+  const now = new Date();
+  for(let i=7;i>=0;i--){
+    const start = startOfWeek(new Date(now.getFullYear(), now.getMonth(), now.getDate() - i*7));
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate()+6);
+    const a = toDateStr(start.getFullYear(), start.getMonth(), start.getDate());
+    const b = toDateStr(end.getFullYear(), end.getMonth(), end.getDate());
+    weeks.push({
+      label: String(start.getDate()) + '.' + String(start.getMonth()+1).padStart(2,'0'),
+      xp: list.filter(l=>l.date >= a && l.date <= b).reduce((s,l)=>s+lessonXp(l), 0)
+    });
+  }
+
+  return { xp, ...lvl, streak, best, done, hwTotal: hwPast.length, perfect, lessonsPast, badges, weeks };
+}
+
+/* Кольцо прогресса уровня. */
+function levelRing(g, size){
+  const r = size/2 - 5, c = 2*Math.PI*r, off = c * (1 - Math.min(1, g.progress));
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--surface2)" stroke-width="6"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--accent)" stroke-width="6"
+            stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"
+            transform="rotate(-90 ${size/2} ${size/2})"/>
+    <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+          font-size="${size*0.34}">${g.icon}</text>
+  </svg>`;
+}
+
+function renderGamePanel(g, containerId){
+  const box = document.getElementById(containerId);
+  if(!box) return;
+  const nextText = g.xpToNext === null
+    ? 'Максимальный уровень!'
+    : `${g.xpInLevel} / ${g.xpToNext} очков до следующего уровня`;
+
+  const maxWeek = Math.max(1, ...g.weeks.map(w=>w.xp));
+  const W = 420, H = 120, padB = 22;
+  const step = W / g.weeks.length;
+  const bars = g.weeks.map((w,i)=>{
+    const h = (w.xp / maxWeek) * (H - padB - 12);
+    const x = i*step + step*0.5;
+    const bw = Math.min(26, step*0.55);
+    return `${w.xp>0
+      ? `<rect x="${x-bw/2}" y="${H-padB-h}" width="${bw}" height="${Math.max(3,h)}" rx="4" fill="var(--accent)"><title>${w.label}: ${w.xp} очков</title></rect>
+         <text x="${x}" y="${H-padB-h-4}" text-anchor="middle" font-size="9" fill="var(--muted)">${w.xp}</text>`
+      : `<rect x="${x-bw/2}" y="${H-padB-3}" width="${bw}" height="3" rx="1.5" fill="var(--surface2)"/>`}
+      <text x="${x}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--muted)">${w.label}</text>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="game-hero">
+      ${levelRing(g, 84)}
+      <div class="game-hero-text">
+        <div class="game-level">${g.name} · уровень ${g.level}</div>
+        <div class="game-xp">${g.xp} очков</div>
+        <div class="xp-bar"><span style="width:${Math.round(g.progress*100)}%"></span></div>
+        <div class="muted-note" style="margin-top:5px;">${nextText}</div>
+      </div>
+      <div class="streak-box ${g.streak>0?'hot':''}">
+        <div class="streak-num">${g.streak}</div>
+        <div class="streak-label">${g.streak>0?'🔥 подряд':'серия'}</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <h4>Очки по неделям</h4>
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMidYMid meet">
+        <line x1="0" y1="${H-padB}" x2="${W}" y2="${H-padB}" stroke="var(--border)"/>
+        ${bars}
+      </svg>
+    </div>
+
+    <div class="panel">
+      <h4>Достижения · ${g.badges.filter(b=>b.got).length} из ${g.badges.length}</h4>
+      <div class="badges">
+        ${g.badges.map(b=>`
+          <div class="badge-item ${b.got?'got':''}" title="${escapeHtml(b.hint)}">
+            <div class="badge-icon">${b.icon}</div>
+            <div class="badge-name">${escapeHtml(b.name)}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+/* =======================================================================
+   КАБИНЕТ УЧЕНИКА
+   Ученик видит только свои занятия: что задано, проверено ли, оплачено ли,
+   и может приложить выполненную работу — фото, файлы, ссылки.
+   ======================================================================= */
+let stuLessons = [];
+let stuFilter = 'all';
+let submittingLessonId = null;
+
+async function loadStudentCabinet(){
+  const { data: rows } = await sb.from('students').select('*').eq('profile_id', me.id).maybeSingle();
+  myStudentRow = rows || null;
+
+  if(!myStudentRow){
+    document.getElementById('stuSub').textContent = '';
+    document.getElementById('stuLessonList').innerHTML =
+      `<div class="empty-state">Ваш аккаунт пока не привязан к преподавателю.<br>
+       Попросите его выдать доступ заново.</div>`;
+    document.getElementById('stuKpis').innerHTML = '';
+    document.getElementById('stuFilterRow').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('stuSub').textContent =
+    myStudentRow.subject ? myStudentRow.subject : 'Занятия и домашние задания';
+
+  const [{ data: lessons }, { data: subs }] = await Promise.all([
+    sb.from('lessons').select('*').eq('student_id', myStudentRow.id).order('date', { ascending:false }),
+    sb.from('submissions').select('*').eq('student_id', myStudentRow.id)
+  ]);
+
+  stuLessons = (lessons||[]).map(l=>({
+    ...rowToLesson(l),
+    submission: (subs||[]).find(s=>s.lesson_id===l.id) || null
+  }));
+  renderStudentCabinet();
+}
+
+/* --- календарь ученика --- */
+let stuCalCursor = new Date(); stuCalCursor.setDate(1);
+
+function setStuView(v){
+  document.querySelectorAll('[data-stuview]')
+    .forEach(t=>t.classList.toggle('active', t.dataset.stuview===v));
+  document.getElementById('stuLessonsView').style.display = v==='lessons' ? 'block' : 'none';
+  document.getElementById('stuProgressView').style.display = v==='progress' ? 'block' : 'none';
+  document.getElementById('stuCalendarView').style.display = v==='calendar' ? 'block' : 'none';
+  if(v==='calendar') renderStuCalendar();
+  if(v==='progress') renderGamePanel(computeGame(stuLessons), 'stuProgressView');
+}
+function stuCalShift(d){
+  stuCalCursor = new Date(stuCalCursor.getFullYear(), stuCalCursor.getMonth()+d, 1);
+  renderStuCalendar();
+}
+function stuCalToday(){
+  stuCalCursor = new Date(); stuCalCursor.setDate(1);
+  renderStuCalendar();
+}
+function renderStuCalendar(){
+  const y = stuCalCursor.getFullYear(), m = stuCalCursor.getMonth();
+  const label = stuCalCursor.toLocaleDateString('ru-RU', { month:'long', year:'numeric' });
+  document.getElementById('stuCalLabel').textContent = label.charAt(0).toUpperCase() + label.slice(1);
+
+  const firstWeekday = (new Date(y,m,1).getDay() + 6) % 7;
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const today = todayStr();
+
+  const grid = document.getElementById('stuCalGrid');
+  grid.innerHTML = '';
+  for(let i=0;i<firstWeekday;i++){
+    const e = document.createElement('div');
+    e.className = 'cal-cell empty';
+    grid.appendChild(e);
+  }
+  for(let d=1; d<=daysInMonth; d++){
+    const ds = toDateStr(y,m,d);
+    const lessons = stuLessons.filter(l=>l.date===ds);
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (ds===today ? ' today' : '');
+    cell.innerHTML = `<div class="cal-daynum">${d}</div>
+      <div class="cal-chips">${lessons.map(l=>{
+        const hasHw = l.homework || (l.homeworkAttachments||[]).length;
+        const flag = !hasHw ? '' : (l.checked ? '✓' : (l.submission ? '⏳' : '!'));
+        return `<div class="cal-chip" title="${escapeHtml(l.topic||'Занятие')}">
+          ${l.time ? l.time : ''} ${flag}
+        </div>`;
+      }).join('')}</div>`;
+    grid.appendChild(cell);
+  }
+
+  const upcoming = stuLessons
+    .filter(l=>l.date >= today)
+    .sort((a,b)=>(a.date+ (a.time||'')).localeCompare(b.date + (b.time||'')))
+    .slice(0,5);
+  document.getElementById('stuUpcoming').innerHTML = upcoming.length
+    ? upcoming.map(l=>`
+        <div class="stu-lesson">
+          <div class="stu-top">
+            <div>
+              <span class="lesson-date">${formatDate(l.date)}</span>
+              ${l.time ? `<span class="lesson-time">${l.time}</span>` : ''}
+              ${l.duration ? `<span class="lesson-time">· ${formatDuration(l.duration)}</span>` : ''}
+            </div>
+            ${l.paid ? '<span class="flag ok">✓ Оплачено</span>'
+                     : `<span class="flag bad">💰 Не оплачено${l.price? ' · '+l.price+'₽':''}</span>`}
+          </div>
+          ${l.topic ? `<div class="lesson-topic"><span class="label">Тема: </span>${escapeHtml(l.topic)}</div>` : ''}
+        </div>`).join('')
+    : '<div class="empty-state-sm">Занятий впереди пока нет.</div>';
+}
+
+function setStuFilter(f){
+  stuFilter = f;
+  document.querySelectorAll('#stuFilterRow .seg')
+    .forEach(b=>b.classList.toggle('on', b.dataset.f===f));
+  renderStudentCabinet();
+}
+
+function renderStudentCabinet(){
+  const withHw = stuLessons.filter(l=>l.homework || (l.homeworkAttachments||[]).length);
+  const submitted = withHw.filter(l=>l.submission).length;
+  const checked = withHw.filter(l=>l.checked).length;
+  const unpaidSum = stuLessons.filter(l=>!l.paid).reduce((s,l)=>s+(Number(l.price)||0),0);
+  const todo = withHw.filter(l=>!l.submission && !l.checked).length;
+
+  const g = computeGame(stuLessons);
+
+  document.getElementById('stuKpis').innerHTML = `
+    <div class="kpi accent"><div class="k-label">${g.icon} Уровень ${g.level}</div>
+      <div class="k-value">${g.xp}</div>
+      <div class="k-sub">${escapeHtml(g.name)} · очков</div>
+      <div class="load-bar"><span style="width:${Math.round(g.progress*100)}%"></span></div></div>
+    <div class="kpi ${g.streak>0?'good':''}"><div class="k-label">Серия</div>
+      <div class="k-value">${g.streak}${g.streak>0?' 🔥':''}</div>
+      <div class="k-sub">${g.best>g.streak ? 'рекорд: '+g.best : 'заданий подряд'}</div></div>
+    <div class="kpi good"><div class="k-label">Сдано ДЗ</div><div class="k-value">${submitted}/${withHw.length}</div>
+      <div class="k-sub">проверено: ${checked}</div></div>
+    <div class="kpi ${todo>0?'warn':''}"><div class="k-label">Нужно сдать</div><div class="k-value">${todo}</div></div>
+    <div class="kpi ${unpaidSum>0?'warn':'good'}"><div class="k-label">К оплате</div>
+      <div class="k-value">${unpaidSum.toLocaleString('ru-RU')} ₽</div></div>
+  `;
+
+  let list = stuLessons;
+  if(stuFilter==='todo')   list = withHw.filter(l=>!l.submission && !l.checked);
+  if(stuFilter==='unpaid') list = stuLessons.filter(l=>!l.paid);
+
+  const box = document.getElementById('stuLessonList');
+  if(!list.length){
+    box.innerHTML = '<div class="empty-state">Здесь пока пусто.</div>';
+    return;
+  }
+
+  box.innerHTML = list.map(l=>{
+    const hasHw = l.homework || (l.homeworkAttachments||[]).length;
+    const done = !!l.submission;
+    return `
+      <div class="stu-lesson ${l.checked?'done':''}">
+        <div class="stu-top">
+          <div>
+            <span class="lesson-date">${formatDate(l.date) || 'Дата не указана'}</span>
+            ${l.time ? `<span class="lesson-time">${l.time}</span>` : ''}
+          </div>
+          <div class="stu-flags">
+            ${l.paid ? '<span class="flag ok">✓ Оплачено</span>'
+                     : `<span class="flag bad">💰 Не оплачено${l.price? ' · '+l.price+'₽':''}</span>`}
+            ${!hasHw ? '' : l.checked ? '<span class="flag ok">✓ ДЗ проверено</span>'
+                     : done ? '<span class="flag wait">⏳ Сдано, ждёт проверки</span>'
+                            : '<span class="flag bad">✗ ДЗ не сдано</span>'}
+            ${lessonXp(l) > 0 ? `<span class="flag ok">+${lessonXp(l)} очков</span>` : ''}
+          </div>
+        </div>
+        ${l.topic ? `<div class="lesson-topic"><span class="label">Тема: </span>${escapeHtml(l.topic)}</div>` : ''}
+        ${l.meetingUrl ? `<div class="lesson-topic"><a class="meet-link" href="${escapeHtml(l.meetingUrl)}" target="_blank" rel="noopener">🎥 Подключиться к занятию</a></div>` : ''}
+        ${l.gradeComment ? `<div class="lesson-topic"><span class="label">Комментарий: </span>${escapeHtml(l.gradeComment)}</div>` : ''}
+        ${hasHw ? `
+          <div class="lesson-hw">
+            <div class="hw-text"><span class="label">Задано</span>${escapeHtml(l.homework||'')}</div>
+            ${renderAttachmentsView(l.homeworkAttachments)}
+            <div class="hw-share-row">
+              <button class="btn-primary btn-sm" onclick="openSubmitModal('${l.id}')">
+                ${done ? 'Изменить работу' : 'Сдать работу'}
+              </button>
+            </div>
+          </div>` : ''}
+        ${done ? `
+          <div class="submission-box">
+            <div class="hw-text"><span class="label">Моя работа</span>${escapeHtml(l.submission.text||'')}</div>
+            ${renderAttachmentsView(l.submission.attachments)}
+          </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function openSubmitModal(lessonId){
+  submittingLessonId = lessonId;
+  const l = stuLessons.find(x=>x.id===lessonId);
+  document.getElementById('submitLessonInfo').textContent =
+    `Занятие ${formatDate(l.date)}${l.topic ? ' · '+l.topic : ''}`;
+  document.getElementById('submitTextInput').value = l.submission ? (l.submission.text||'') : '';
+  drafts.sub = l.submission ? JSON.parse(JSON.stringify(l.submission.attachments||[])) : [];
+  renderAttachmentChips('sub');
+  setupSmartInput('sub', 'subSmartInput', 'submitTextInput');
+  openModal('submitModalOverlay');
+}
+
+async function saveSubmission(){
+  const text = document.getElementById('submitTextInput').value.trim();
+  if(!text && drafts.sub.length===0){ alert('Приложите работу или напишите комментарий'); return; }
+  const l = stuLessons.find(x=>x.id===submittingLessonId);
+
+  if(demoMode){
+    l.submission = { id: uuid(), text, attachments: JSON.parse(JSON.stringify(drafts.sub)) };
+    closeModal('submitModalOverlay');
+    notifyToast('В демо работа никуда не уходит, но так это выглядит.');
+    renderStudentCabinet();
+    return;
+  }
+
+  const row = {
+    id: l.submission ? l.submission.id : uuid(),
+    lesson_id: l.id,
+    student_id: myStudentRow.id,
+    text,
+    attachments: drafts.sub,
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await sb.from('submissions').upsert(row, { onConflict: 'lesson_id' });
+  if(error){ notifyToast('Не удалось отправить: ' + error.message); return; }
+
+  closeModal('submitModalOverlay');
+  notifyToast('Работа отправлена преподавателю.');
+  await loadStudentCabinet();
+}
+
+/* =======================================================================
+   БАЗА ЗНАНИЙ: предметы → темы → материалы
+   Библиотека собирается один раз и переиспользуется: из неё материал
+   вставляется в домашнее задание или отправляется ученику.
+   ======================================================================= */
+function getSubject(id){ return data.subjects.find(x=>x.id===id); }
+function getCurrentSubject(){ return getSubject(currentSubjectId); }
+
+function renderSubjects(){
+  const grid = document.getElementById('subjectGrid');
+  grid.className = '';
+  grid.id = 'subjectGrid';
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(240px,1fr))';
+  grid.style.gap = '14px';
+  grid.innerHTML = '';
+
+  data.subjects.forEach(sub=>{
+    const topics = sub.topics || [];
+    const materials = topics.filter(t=>t.kind==='material').length;
+    const tasks = topics.filter(t=>t.kind==='tasks').length;
+    const card = document.createElement('div');
+    card.className = 'student-card';
+    card.onclick = (e)=>{ if(e.target.classList.contains('card-remove')) return; openSubject(sub.id); };
+    card.innerHTML = `
+      <button class="card-remove" onclick="removeSubject('${sub.id}', event)">✕</button>
+      <div class="avatar" style="background:${sub.color}">${initials(sub.name)}</div>
+      <h3>${escapeHtml(sub.name)}</h3>
+      <div class="subject">${topics.length} ${topics.length===1?'тема':'тем'}</div>
+      <div class="stats">
+        ${materials>0 ? `<span class="badge">📘 ${materials}</span>` : ''}
+        ${tasks>0 ? `<span class="badge">✏️ ${tasks}</span>` : ''}
+        ${topics.length===0 ? `<span class="badge">пусто</span>` : ''}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  const add = document.createElement('div');
+  add.className = 'add-card';
+  add.onclick = ()=>openSubjectModal();
+  add.innerHTML = `<div class="plus">+</div><div>Добавить предмет</div>`;
+  grid.appendChild(add);
+}
+
+function openSubject(id){
+  currentSubjectId = id;
+  hideAllViews();
+  document.getElementById('subjectView').style.display = 'block';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.view==='knowledge'));
+  const sub = getSubject(id);
+  document.getElementById('subjectAvatar').style.background = sub.color;
+  document.getElementById('subjectAvatar').textContent = initials(sub.name);
+  document.getElementById('subjectName').textContent = sub.name;
+  document.getElementById('topicSearchInput').value = '';
+  renderTopics();
+}
+
+function setTopicFilter(kind){
+  topicFilter = kind;
+  document.querySelectorAll('#topicFilterRow .seg')
+    .forEach(b=>b.classList.toggle('on', b.dataset.kind===kind));
+  renderTopics();
+}
+
+function renderTopics(){
+  const sub = getCurrentSubject();
+  if(!sub) return;
+  const q = (document.getElementById('topicSearchInput').value||'').trim().toLowerCase();
+  document.getElementById('subjectCount').textContent =
+    `${sub.topics.length} ${sub.topics.length===1?'тема':'тем'}`;
+
+  let list = sub.topics.slice().reverse();
+  if(topicFilter !== 'all') list = list.filter(t=>t.kind===topicFilter);
+  if(q) list = list.filter(t=>
+    (t.title||'').toLowerCase().includes(q) || (t.text||'').toLowerCase().includes(q));
+
+  const box = document.getElementById('topicList');
+  if(!list.length){
+    box.innerHTML = `<div class="empty-state-sm">${
+      sub.topics.length===0
+        ? 'Пока пусто. Добавьте первую тему — материал можно будет вставлять в ДЗ одним нажатием.'
+        : 'Ничего не найдено.'}</div>`;
+    return;
+  }
+
+  box.innerHTML = list.map(t=>`
+    <div class="lesson">
+      <div class="lesson-top">
+        <div>
+          <span class="lesson-date">${t.kind==='tasks'?'✏️':'📘'} ${escapeHtml(t.title || 'Без названия')}</span>
+        </div>
+        <div class="lesson-actions">
+          <button class="btn-ghost btn-sm" onclick="shareTopic('${t.id}')" title="Отправить ученику">➤</button>
+          <button class="btn-ghost btn-sm" onclick="openTopicModal('${t.id}')">Изм.</button>
+          <button class="btn-ghost btn-sm" onclick="removeTopic('${t.id}')">Удал.</button>
+        </div>
+      </div>
+      ${t.text ? `<div class="material-text">${escapeHtml(t.text)}</div>` : ''}
+      ${renderAttachmentsView(t.attachments)}
+    </div>
+  `).join('');
+}
+
+/* --- предмет --- */
+function openSubjectModal(id){
+  editingSubjectId = id || null;
+  const sub = id ? getSubject(id) : null;
+  document.getElementById('subjectModalTitle').textContent = sub ? 'Изменить предмет' : 'Новый предмет';
+  document.getElementById('subjectNameInput').value = sub ? sub.name : '';
+  selectedSubjectColor = sub ? sub.color : COLORS[data.subjects.length % COLORS.length];
+  renderSubjectSwatches();
+  openModal('subjectModalOverlay');
+}
+function renderSubjectSwatches(){
+  document.getElementById('subjectSwatches').innerHTML = COLORS.map(c=>
+    `<div class="swatch ${c===selectedSubjectColor?'selected':''}" style="background:${c}" onclick="selectSubjectColor('${c}')"></div>`
+  ).join('');
+}
+function selectSubjectColor(c){
+  selectedSubjectColor = c;
+  renderSubjectSwatches();
+}
+function saveSubject(){
+  const name = document.getElementById('subjectNameInput').value.trim();
+  if(!name){ alert('Введите название предмета'); return; }
+  if(editingSubjectId){
+    const sub = getSubject(editingSubjectId);
+    sub.name = name;
+    sub.color = selectedSubjectColor;
+  } else {
+    data.subjects.push({ id: uid(), name, color: selectedSubjectColor, topics: [] });
+  }
+  save();
+  closeModal('subjectModalOverlay');
+  if(currentSubjectId && editingSubjectId === currentSubjectId) openSubject(currentSubjectId);
+  else { switchView('knowledge'); }
+}
+function removeSubject(id, ev){
+  if(ev) ev.stopPropagation();
+  const sub = getSubject(id);
+  if(!confirm(`Удалить предмет «${sub.name}» со всеми темами?`)) return;
+  data.subjects = data.subjects.filter(x=>x.id!==id);
+  save();
+  renderSubjects();
+}
+
+/* --- тема --- */
+function pickTopicKind(kind){
+  pickedTopicKind = kind;
+  document.querySelectorAll('#topicKindRow .seg')
+    .forEach(b=>b.classList.toggle('on', b.dataset.kind===kind));
+}
+function openTopicModal(id){
+  editingTopicId = id || null;
+  const sub = getCurrentSubject();
+  const t = id ? sub.topics.find(x=>x.id===id) : null;
+  document.getElementById('topicModalTitle').textContent = t ? 'Изменить тему' : 'Новая тема';
+  document.getElementById('topicTitleInput').value = t ? (t.title||'') : '';
+  document.getElementById('topicTextInput').value = t ? (t.text||'') : '';
+  pickTopicKind(t ? t.kind : 'material');
+  drafts.kb = t ? JSON.parse(JSON.stringify(t.attachments||[])) : [];
+  renderAttachmentChips('kb');
+  setupSmartInput('kb', 'kbSmartInput', 'topicTextInput');
+  openModal('topicModalOverlay');
+}
+function saveTopic(){
+  const sub = getCurrentSubject();
+  const title = document.getElementById('topicTitleInput').value.trim();
+  const text = document.getElementById('topicTextInput').value.trim();
+  if(!title && !text && drafts.kb.length===0){ alert('Добавьте название, текст или вложение'); return; }
+
+  if(editingTopicId){
+    const t = sub.topics.find(x=>x.id===editingTopicId);
+    Object.assign(t, { title, text, kind: pickedTopicKind, attachments: drafts.kb });
+  } else {
+    sub.topics.push({ id: uid(), title, text, kind: pickedTopicKind, attachments: drafts.kb, createdAt: Date.now() });
+  }
+  save();
+  closeModal('topicModalOverlay');
+  renderTopics();
+}
+function removeTopic(id){
+  const sub = getCurrentSubject();
+  const t = sub.topics.find(x=>x.id===id);
+  if(!confirm(`Удалить тему «${t.title || 'Без названия'}»?`)) return;
+  sub.topics = sub.topics.filter(x=>x.id!==id);
+  save();
+  renderTopics();
+}
+
+/* --- отправка ученику --- */
+function buildTopicText(sub, t){
+  let out = `${t.kind==='tasks'?'Задачи':'Материал'}: ${t.title || ''}`.trim();
+  out += `\nПредмет: ${sub.name}`;
+  if(t.text) out += `\n\n${t.text}`;
+  const links = (t.attachments||[]).filter(a=>a.kind==='link').map(a=>a.url);
+  if(links.length) out += `\n\nСсылки:\n${links.join('\n')}`;
+  return out;
+}
+async function shareTopic(id){
+  const sub = getCurrentSubject();
+  const t = sub.topics.find(x=>x.id===id);
+  await shareWithAttachments(buildTopicText(sub, t), t.attachments);
+}
+
+/* --- вставка материала в ДЗ --- */
+function openKbPicker(target){
+  kbPickerTarget = target || 'hw';
+  document.getElementById('kbPickerSearch').value = '';
+  renderKbPicker();
+  openModal('kbPickerOverlay');
+}
+function renderKbPicker(){
+  const q = (document.getElementById('kbPickerSearch').value||'').trim().toLowerCase();
+  const box = document.getElementById('kbPickerList');
+
+  const rows = [];
+  data.subjects.forEach(sub=>{
+    const topics = (sub.topics||[]).filter(t=>
+      !q || (t.title||'').toLowerCase().includes(q) || (t.text||'').toLowerCase().includes(q));
+    if(!topics.length) return;
+    rows.push(`<div class="section-label" style="margin:14px 0 8px;">
+      <span style="color:${sub.color}">●</span> ${escapeHtml(sub.name)}</div>`);
+    topics.slice().reverse().forEach(t=>{
+      const count = (t.attachments||[]).length;
+      rows.push(`
+        <button type="button" class="picker-field" style="margin-bottom:6px;"
+                onclick="insertFromKb('${sub.id}','${t.id}')">
+          <span class="pf-value">${t.kind==='tasks'?'✏️':'📘'} ${escapeHtml(t.title || 'Без названия')}${count? ' · '+count+' влож.' : ''}</span>
+          <span class="pf-icon">+</span>
+        </button>`);
+    });
+  });
+
+  if(!rows.length){
+    box.innerHTML = `<div class="empty-state-sm">${
+      data.subjects.length===0
+        ? 'База знаний пуста. Заполните её во вкладке «База знаний» — и материалы можно будет подставлять сюда одним нажатием.'
+        : 'Ничего не найдено.'}</div>`;
+    return;
+  }
+  box.innerHTML = rows.join('');
+}
+function insertFromKb(subjectId, topicId){
+  const sub = getSubject(subjectId);
+  const t = sub.topics.find(x=>x.id===topicId);
+  const key = kbPickerTarget;
+  const taId = key === 'hw' ? 'lessonHwInput' : (key === 'sol' ? 'lessonSolutionInput' : 'materialTextInput');
+  const ta = document.getElementById(taId);
+
+  const addition = (t.title ? t.title + (t.text ? '\n' : '') : '') + (t.text || '');
+  if(addition){
+    ta.value = ta.value.trim() ? ta.value.trim() + '\n\n' + addition : addition;
+  }
+  // копируем вложения, выдавая им новые id, чтобы удаление в ДЗ не трогало базу
+  (t.attachments||[]).forEach(a=>{
+    drafts[key].push({ ...JSON.parse(JSON.stringify(a)), id: uid() });
+  });
+  renderAttachmentChips(key);
+  closeModal('kbPickerOverlay');
+  notifyToast('Материал добавлен из базы знаний.');
+}
+
+/* =======================================================================
    АНАЛИТИКА: загруженность, часы, заработок, свободные окна
    ======================================================================= */
 let statsPeriod = 'week';       // 'day' | 'week' | 'month'
@@ -2546,6 +4505,30 @@ function renderStats(){
   renderFreeSlots(st);
   renderByStudent(st);
   renderEarningsChart();
+  renderProductMetrics();
+}
+
+/* Активные пользователи всего сервиса (DAU / WAU / MAU). */
+async function renderProductMetrics(){
+  const panel = document.getElementById('productMetricsPanel');
+  if(!sb || !me){ panel.style.display = 'none'; return; }
+  try{
+    const { data: m, error } = await sb.rpc('product_metrics');
+    if(error || !m) throw error || new Error('нет данных');
+    panel.style.display = 'block';
+    document.getElementById('productMetrics').innerHTML = `
+      <div class="kpi accent"><div class="k-label">DAU</div><div class="k-value">${m.dau}</div>
+        <div class="k-sub">заходили сегодня</div></div>
+      <div class="kpi"><div class="k-label">WAU</div><div class="k-value">${m.wau}</div>
+        <div class="k-sub">за 7 дней</div></div>
+      <div class="kpi"><div class="k-label">MAU</div><div class="k-value">${m.mau}</div>
+        <div class="k-sub">за 30 дней</div></div>
+      <div class="kpi"><div class="k-label">Преподавателей</div><div class="k-value">${m.teachers}</div></div>
+      <div class="kpi"><div class="k-label">Учеников</div><div class="k-value">${m.students}</div></div>
+    `;
+  }catch(e){
+    panel.style.display = 'none';
+  }
 }
 
 function renderStatsKpis(st){
