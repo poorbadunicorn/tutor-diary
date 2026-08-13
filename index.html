@@ -886,6 +886,18 @@
       <label>Цвет карточки</label>
       <div class="swatches" id="colorSwatches"></div>
     </div>
+    <div class="field">
+      <label class="switch-row" id="studentShowPriceRow">
+        <span class="switch">
+          <input type="checkbox" id="studentShowPriceCheckbox" checked
+                 onchange="document.getElementById('studentShowPriceRow').classList.toggle('on', this.checked)">
+        </span>
+        <span class="switch-text">
+          <span class="switch-title">💰 Показывать стоимость ученику</span>
+          <span class="switch-sub">Если выключить, в кабинете ученика будет видно только «оплачено / не оплачено», без суммы. В вашей аналитике сумма останется</span>
+        </span>
+      </label>
+    </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('studentModalOverlay')">Отмена</button>
       <button class="btn-primary" onclick="saveStudent()">Сохранить</button>
@@ -956,9 +968,20 @@
         </span>
         <span class="switch-text">
           <span class="switch-title">🔁 Повторять каждую неделю</span>
-          <span class="switch-sub">Занятие будет повторяться в этот же день и время</span>
+          <span class="switch-sub">Домашнее задание, ссылку на встречу и решение зададите отдельно на каждое занятие — сюда переносятся только дата, время и стоимость</span>
         </span>
       </label>
+      <div id="recurringRangeWrap" style="display:none;margin-top:10px;">
+        <div class="dur-row">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="recurringRangeInput" value="8"
+                 oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+          <div class="seg-row">
+            <button type="button" class="seg" data-range-unit="count" onclick="pickRecurrenceRangeUnit('count')">занятий</button>
+            <button type="button" class="seg" data-range-unit="weeks" onclick="pickRecurrenceRangeUnit('weeks')">недель</button>
+          </div>
+        </div>
+        <div class="muted-note" style="margin-top:6px;">Занятие раз в неделю, поэтому число занятий и число недель совпадают — выберите, как удобнее считать. Максимум 52.</div>
+      </div>
     </div>
 
     <div class="field">
@@ -1664,6 +1687,7 @@ async function loadTeacherData(){
     students: (students||[]).map(s=>({
       id: s.id, name: s.name, subject: s.subject, color: s.color,
       inviteCode: s.invite_code, profileId: s.profile_id,
+      showPrice: s.show_price !== false,
       chat: s.chat || [],
       lessons: lessons.filter(l=>l.student_id===s.id).map(rowToLesson)
                       .map(l=>({ ...l, submission: submissions.find(x=>x.lesson_id===l.id) || null })),
@@ -1707,7 +1731,7 @@ async function pushTeacherData(){
 
     const studentRows = data.students.map(s=>({
       id: s.id, teacher_id: me.id, name: s.name, subject: s.subject || '',
-      color: s.color, chat: s.chat || []
+      color: s.color, chat: s.chat || [], show_price: s.showPrice !== false
     }));
     if(studentRows.length) await sb.from('students').upsert(studentRows);
 
@@ -1978,6 +2002,7 @@ function normalize(){
   data.students.forEach(s=>{
     if(!s.materials) s.materials = [];
     if(!s.chat) s.chat = [];
+    if(s.showPrice === undefined) s.showPrice = true;
     (s.lessons||[]).forEach(l=>{
       if(l.paid === undefined) l.paid = false;
       if(l.price === undefined || l.price === null) l.price = 0;
@@ -2492,6 +2517,9 @@ function openStudentModal(id){
   document.getElementById('studentSubjectInput').value = s ? (s.subject||'') : '';
   selectedColor = s ? s.color : COLORS[data.students.length % COLORS.length];
   renderSwatches();
+  const showPrice = s ? (s.showPrice !== false) : true;
+  document.getElementById('studentShowPriceCheckbox').checked = showPrice;
+  document.getElementById('studentShowPriceRow').classList.toggle('on', showPrice);
   openModal('studentModalOverlay');
   setTimeout(()=>document.getElementById('studentNameInput').focus(), 50);
 }
@@ -2510,12 +2538,13 @@ function saveStudent(){
   const name = document.getElementById('studentNameInput').value.trim();
   if(!name){ alert('Введите имя ученика'); return; }
   const subject = document.getElementById('studentSubjectInput').value.trim();
+  const showPrice = document.getElementById('studentShowPriceCheckbox').checked;
 
   if(editingStudentId){
     const s = data.students.find(x=>x.id===editingStudentId);
-    s.name = name; s.subject = subject; s.color = selectedColor;
+    s.name = name; s.subject = subject; s.color = selectedColor; s.showPrice = showPrice;
   } else {
-    data.students.push({ id: uid(), name, subject, color: selectedColor, lessons: [], materials: [], chat: [] });
+    data.students.push({ id: uid(), name, subject, color: selectedColor, showPrice, lessons: [], materials: [], chat: [] });
   }
   save();
   closeModal('studentModalOverlay');
@@ -2960,6 +2989,14 @@ async function createZoomMeeting(){
 function onRecurringToggle(cb){
   const row = document.getElementById('recurringSwitchRow');
   if(row) row.classList.toggle('on', cb.checked);
+  const rangeWrap = document.getElementById('recurringRangeWrap');
+  if(rangeWrap) rangeWrap.style.display = cb.checked ? 'block' : 'none';
+}
+let recurrenceRangeUnit = 'count';
+function pickRecurrenceRangeUnit(u){
+  recurrenceRangeUnit = u;
+  document.querySelectorAll('[data-range-unit]')
+    .forEach(b=>b.classList.toggle('on', b.dataset.rangeUnit === u));
 }
 function openLessonModal(id, prefillDate){
   editingLessonId = id || null;
@@ -2992,6 +3029,8 @@ function openLessonModal(id, prefillDate){
   document.getElementById('recurringFieldWrap').style.display = l ? 'none' : 'block';
   const recCb = document.getElementById('lessonRecurringCheckbox');
   recCb.checked = false;
+  document.getElementById('recurringRangeInput').value = '8';
+  pickRecurrenceRangeUnit('count');
   onRecurringToggle(recCb);
 
   openModal('lessonModalOverlay');
@@ -3016,24 +3055,33 @@ function saveLesson(){
     const isRecurring = document.getElementById('lessonRecurringCheckbox').checked;
 
     if(isRecurring && date){
-      // Создаём занятия на год вперёд. Не нужную часть серии всегда можно
-      // убрать через "Удалить повторение (это и все будущие)".
+      // Диапазон задаёт сам преподаватель (раз в неделю, поэтому "занятий"
+      // и "недель" — одно и то же число). Не нужную часть серии всегда
+      // можно убрать через "Удалить повторение (это и все будущие)".
+      const rangeRaw = document.getElementById('recurringRangeInput').value.replace(/[^\d]/g,'');
+      const OCCURRENCES = Math.max(1, Math.min(52, parseInt(rangeRaw, 10) || 8));
       const recurrenceId = uid();
       const startDate = new Date(date + 'T00:00:00');
-      const OCCURRENCES = 52; // примерно год еженедельных занятий
       let cursor = new Date(startDate);
-      let count = 0;
-      while(count < OCCURRENCES){
+      for(let i=0; i<OCCURRENCES; i++){
         const occDate = toDateStr(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+        const isFirst = i === 0;
+        // В будущие занятия переносятся только дата/время/длительность/цена —
+        // тема, ДЗ, ссылка на встречу и решение задаются отдельно на каждое,
+        // чтобы одно и то же задание не расползалось по всей серии.
         s.lessons.push({
-          id: uid(), date: occDate, time, topic, price, duration: pickedDuration, meetingUrl, grade:null, gradeComment:'', homework, solution,
+          id: uid(), date: occDate, time, duration: pickedDuration, price,
+          topic: isFirst ? topic : '',
+          meetingUrl: isFirst ? meetingUrl : '',
+          homework: isFirst ? homework : '',
+          solution: isFirst ? solution : '',
+          grade:null, gradeComment:'',
           checked:false, paid:false,
-          homeworkAttachments: JSON.parse(JSON.stringify(drafts.hw)),
-          solutionAttachments: JSON.parse(JSON.stringify(drafts.sol)),
+          homeworkAttachments: isFirst ? JSON.parse(JSON.stringify(drafts.hw)) : [],
+          solutionAttachments: isFirst ? JSON.parse(JSON.stringify(drafts.sol)) : [],
           recurrenceId
         });
         cursor.setDate(cursor.getDate() + 7);
-        count++;
       }
     } else {
       s.lessons.push({ id: uid(), date, time, topic, price, duration: pickedDuration, meetingUrl, grade:null, gradeComment:'', homework, solution, checked:false, paid:false, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol, recurrenceId: null });
@@ -3867,6 +3915,11 @@ let stuLessons = [];
 let stuFilter = 'all';
 let submittingLessonId = null;
 
+// Преподаватель может скрыть сумму от ученика — тогда виден только статус оплаты.
+function stuShowPrice(){
+  return !myStudentRow || myStudentRow.show_price !== false;
+}
+
 async function loadStudentCabinet(){
   const { data: rows } = await sb.from('students').select('*').eq('profile_id', me.id).maybeSingle();
   myStudentRow = rows || null;
@@ -3962,7 +4015,7 @@ function renderStuCalendar(){
               ${l.duration ? `<span class="lesson-time">· ${formatDuration(l.duration)}</span>` : ''}
             </div>
             ${l.paid ? '<span class="flag ok">✓ Оплачено</span>'
-                     : `<span class="flag bad">💰 Не оплачено${l.price? ' · '+l.price+'₽':''}</span>`}
+                     : `<span class="flag bad">💰 Не оплачено${(stuShowPrice() && l.price) ? ' · '+l.price+'₽' : ''}</span>`}
           </div>
           ${l.topic ? `<div class="lesson-topic"><span class="label">Тема: </span>${escapeHtml(l.topic)}</div>` : ''}
         </div>`).join('')
@@ -3980,10 +4033,13 @@ function renderStudentCabinet(){
   const withHw = stuLessons.filter(l=>l.homework || (l.homeworkAttachments||[]).length);
   const submitted = withHw.filter(l=>l.submission).length;
   const checked = withHw.filter(l=>l.checked).length;
-  const unpaidSum = stuLessons.filter(l=>!l.paid).reduce((s,l)=>s+(Number(l.price)||0),0);
+  const unpaidLessons = stuLessons.filter(l=>!l.paid);
+  const unpaidSum = unpaidLessons.reduce((s,l)=>s+(Number(l.price)||0),0);
+  const unpaidCount = unpaidLessons.length;
   const todo = withHw.filter(l=>!l.submission && !l.checked).length;
 
   const g = computeGame(stuLessons);
+  const showPrice = stuShowPrice();
 
   document.getElementById('stuKpis').innerHTML = `
     <div class="kpi accent"><div class="k-label">${g.icon} Уровень ${g.level}</div>
@@ -3996,8 +4052,11 @@ function renderStudentCabinet(){
     <div class="kpi good"><div class="k-label">Сдано ДЗ</div><div class="k-value">${submitted}/${withHw.length}</div>
       <div class="k-sub">проверено: ${checked}</div></div>
     <div class="kpi ${todo>0?'warn':''}"><div class="k-label">Нужно сдать</div><div class="k-value">${todo}</div></div>
-    <div class="kpi ${unpaidSum>0?'warn':'good'}"><div class="k-label">К оплате</div>
-      <div class="k-value">${unpaidSum.toLocaleString('ru-RU')} ₽</div></div>
+    ${showPrice
+      ? `<div class="kpi ${unpaidSum>0?'warn':'good'}"><div class="k-label">К оплате</div>
+          <div class="k-value">${unpaidSum.toLocaleString('ru-RU')} ₽</div></div>`
+      : `<div class="kpi ${unpaidCount>0?'warn':'good'}"><div class="k-label">Оплата</div>
+          <div class="k-value">${unpaidCount>0 ? unpaidCount+' не опл.' : 'всё оплачено'}</div></div>`}
   `;
 
   let list = stuLessons;
@@ -4022,7 +4081,7 @@ function renderStudentCabinet(){
           </div>
           <div class="stu-flags">
             ${l.paid ? '<span class="flag ok">✓ Оплачено</span>'
-                     : `<span class="flag bad">💰 Не оплачено${l.price? ' · '+l.price+'₽':''}</span>`}
+                     : `<span class="flag bad">💰 Не оплачено${(stuShowPrice() && l.price) ? ' · '+l.price+'₽' : ''}</span>`}
             ${!hasHw ? '' : l.checked ? '<span class="flag ok">✓ ДЗ проверено</span>'
                      : done ? '<span class="flag wait">⏳ Сдано, ждёт проверки</span>'
                             : '<span class="flag bad">✗ ДЗ не сдано</span>'}
