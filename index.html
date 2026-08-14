@@ -4,12 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Дневник преподавателя</title>
+<script>
+  // Ставим тему до отрисовки страницы, чтобы не было вспышки тёмного экрана
+  // перед переключением на светлый (или наоборот) у вернувшегося пользователя.
+  try{
+    var savedTheme = localStorage.getItem('tutor_diary_theme');
+    if(savedTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  }catch(e){}
+</script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     /* Сообщаем браузеру, что интерфейс тёмный: тогда системные всплывающие
-       окошки выбора даты и времени тоже рисуются тёмными, а не белыми. */
+       окошки выбора даты и времени тоже рисуются тёмными, а не белыми.
+       Для светлой темы это же свойство переопределяется ниже. */
     color-scheme: dark;
     --bg:#0f1117;
     --surface:#171a23;
@@ -19,12 +28,59 @@
     --muted:#9aa0ab;
     --accent:#6c8cff;
     --accent-dim:#3d4a80;
+    --accent-soft:rgba(108,140,255,.1);
     --success:#3ecf8e;
     --success-dim:#1f4a38;
+    --success-border:#2a5c46;
     --danger:#ef5b5b;
     --danger-dim:#4a2323;
+    --danger-border:#5c2a2a;
+    --danger-border-strong:#6b2f2f;
+    --danger-soft-text:#ffb0b0;
     --warn:#f2b84b;
+    --warn-dim:#3a2f14;
+    --warn-border:#5c4a1f;
     --radius:12px;
+    /* Цвета ниже — «заливки»: всегда яркие, на них всегда тёмный текст
+       (#0b0d13), поэтому они не меняются между темами. */
+    --accent-fill:#6c8cff;
+    --success-fill:#3ecf8e;
+    --danger-fill:#ef5b5b;
+    --warn-fill:#f2b84b;
+    --grade4-fill:#8fd694;
+    --switch-track:#313543;
+    --switch-knob:#8b91a0;
+    --streak-bg:#3a2414;
+    --streak-border:#6b4420;
+    --streak-text:#ff9040;
+  }
+  html[data-theme="light"]{
+    color-scheme: light;
+    --bg:#f8f7f4;
+    --surface:#ffffff;
+    --surface2:#f1efe8;
+    --border:#e3e0d6;
+    --text:#1c1d22;
+    --muted:#6f6e68;
+    --accent:#5a52c9;
+    --accent-dim:#e6e2fb;
+    --accent-soft:rgba(90,82,201,.09);
+    --success:#0e8a58;
+    --success-dim:#dbf3e7;
+    --success-border:#a8dcc3;
+    --danger:#d0453f;
+    --danger-dim:#fbe2e0;
+    --danger-border:#f0b6b0;
+    --danger-border-strong:#e59a94;
+    --danger-soft-text:#a3241f;
+    --warn:#a8730a;
+    --warn-dim:#faecd3;
+    --warn-border:#e3c98a;
+    --switch-track:#e1ded3;
+    --switch-knob:#ffffff;
+    --streak-bg:#fce3d1;
+    --streak-border:#f0be95;
+    --streak-text:#c1560f;
   }
   *{box-sizing:border-box;}
   html, body{ overflow-x:hidden; max-width:100%; }
@@ -45,7 +101,7 @@
   .top-nav .sub{color:var(--muted);font-size:13px;margin-top:4px;}
   .tabs{display:flex;gap:4px;background:var(--surface2);padding:4px;border-radius:10px;}
   .tab{background:transparent;color:var(--muted);padding:8px 16px;border-radius:8px;font-size:13.5px;border:none;cursor:pointer;font-family:inherit;font-weight:500;}
-  .tab.active{background:var(--accent);color:#0b0d13;}
+  .tab.active{background:var(--accent-fill);color:#0b0d13;}
   .top-actions{display:flex;gap:8px;flex-wrap:wrap;}
 
   button{
@@ -53,9 +109,9 @@
     padding:9px 16px;font-size:14px;font-weight:500;transition:filter .15s,background .15s;
   }
   button:hover{filter:brightness(1.12);}
-  .btn-primary{background:var(--accent);color:#0b0d13;}
+  .btn-primary{background:var(--accent-fill);color:#0b0d13;}
   .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
-  .btn-danger{background:var(--danger-dim);color:#ffb4b4;border:1px solid #6b2f2f;}
+  .btn-danger{background:var(--danger-dim);color:var(--danger-soft-text);border:1px solid var(--danger-border-strong);}
   .btn-ghost{background:transparent;color:var(--muted);padding:6px 10px;}
   .btn-ghost:hover{color:var(--text);background:var(--surface2);}
   .btn-sm{padding:6px 10px;font-size:12.5px;}
@@ -77,9 +133,9 @@
   .badge{
     display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:var(--surface2);
   }
-  .badge.pending{background:#3a2f14;color:var(--warn);}
+  .badge.pending{background:var(--warn-dim);color:var(--warn);}
   .badge.done{background:var(--success-dim);color:var(--success);}
-  .badge.unpaid{background:var(--danger-dim);color:#ffb0b0;}
+  .badge.unpaid{background:var(--danger-dim);color:var(--danger-soft-text);}
   .card-remove{
     position:absolute;top:10px;right:10px;background:transparent;color:var(--muted);
     font-size:16px;padding:2px 6px;line-height:1;border-radius:6px;
@@ -149,15 +205,15 @@
     display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);
     background:var(--surface2);font-size:12.5px;color:var(--muted);white-space:nowrap;
   }
-  .check-toggle.checked{background:var(--success-dim);color:var(--success);border-color:#2a5c46;}
-  .check-toggle.unchecked{background:var(--danger-dim);color:#ffb0b0;border-color:#5c2a2a;}
+  .check-toggle.checked{background:var(--success-dim);color:var(--success);border-color:var(--success-border);}
+  .check-toggle.unchecked{background:var(--danger-dim);color:var(--danger-soft-text);border-color:var(--danger-border);}
 
   .pay-toggle{
     display:inline-flex;align-items:center;gap:5px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);
     font-size:12.5px;white-space:nowrap;
   }
-  .pay-toggle.paid{background:var(--success-dim);color:var(--success);border-color:#2a5c46;}
-  .pay-toggle.unpaid{background:var(--danger-dim);color:#ffb0b0;border-color:#5c2a2a;}
+  .pay-toggle.paid{background:var(--success-dim);color:var(--success);border-color:var(--success-border);}
+  .pay-toggle.unpaid{background:var(--danger-dim);color:var(--danger-soft-text);border-color:var(--danger-border);}
 
   /* Attachments */
   .chips-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
@@ -187,7 +243,7 @@
     transition:border-color .15s,background .15s;
   }
   .switch-row:hover{border-color:var(--accent-dim);}
-  .switch-row.on{border-color:var(--accent);background:rgba(108,140,255,.1);}
+  .switch-row.on{border-color:var(--accent);background:var(--accent-soft);}
   .switch-text{display:flex;flex-direction:column;gap:2px;min-width:0;}
   .switch-title{font-size:13.5px;font-weight:500;color:var(--muted);transition:color .15s;}
   .switch-row.on .switch-title{color:var(--text);}
@@ -195,12 +251,12 @@
   .switch{
     display:block;position:relative;flex:0 0 auto;
     width:52px;height:30px;border-radius:15px;box-sizing:border-box;
-    background:#313543;border:1px solid var(--border);
+    background:var(--switch-track);border:1px solid var(--border);
     transition:background .2s,border-color .2s;
   }
   .switch::after{
     content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
-    background:#8b91a0;box-shadow:0 1px 3px rgba(0,0,0,.4);
+    background:var(--switch-knob);box-shadow:0 1px 3px rgba(0,0,0,.4);
     transition:transform .2s,background .2s;
   }
   .switch-row.on .switch{background:var(--accent);border-color:var(--accent);}
@@ -318,7 +374,7 @@
   .pk-day:hover{background:var(--surface2);filter:none;}
   .pk-day.other{color:var(--muted);opacity:.4;}
   .pk-day.today{border-color:var(--accent-dim);color:var(--accent);}
-  .pk-day.selected{background:var(--accent);color:#0b0d13;font-weight:600;border-color:var(--accent);}
+  .pk-day.selected{background:var(--accent-fill);color:#0b0d13;font-weight:600;border-color:var(--accent-fill);}
 
   .pk-actions{display:flex;gap:8px;margin-top:14px;}
   .pk-actions button{flex:1;font-size:13px;padding:9px;}
@@ -377,13 +433,41 @@
   /* Плашка демо-режима */
   #demoBanner{
     position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
-    background:var(--warn);color:#0b0d13;font-size:12.5px;font-weight:500;
+    background:var(--warn-fill);color:#0b0d13;font-size:12.5px;font-weight:500;
     padding:8px 10px 8px 16px;border-radius:22px;z-index:150;
     display:flex;align-items:center;gap:6px;max-width:94vw;
     box-shadow:0 6px 20px rgba(0,0,0,.4);
   }
   #demoBanner button{color:#0b0d13;font-weight:600;padding:4px 10px;}
   #demoBanner button:hover{background:rgba(0,0,0,.12);}
+
+  /* Переключатель темы + языка — виден на любом экране (вход, кабинет
+     ученика, приложение преподавателя), хранится в этом браузере.
+     Полупрозрачная капсула поверх контента: не занимает место в разметке
+     и почти не заметна, пока на неё не навести курсор. */
+  .app-switcher{
+    position:fixed;top:14px;right:14px;z-index:170;
+    display:flex;align-items:center;gap:2px;
+    background:rgba(120,120,130,.16);border:1px solid rgba(120,120,130,.22);
+    border-radius:20px;padding:4px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    transition:background .15s,border-color .15s;
+  }
+  .app-switcher:hover{background:var(--surface2);border-color:var(--border);}
+  .switcher-btn{
+    width:28px;height:28px;border-radius:50%;padding:0;border:none;background:transparent;
+    color:var(--text);font-size:14px;display:flex;align-items:center;justify-content:center;opacity:.8;
+  }
+  .switcher-btn:hover{opacity:1;filter:none;}
+  .switcher-div{width:1px;height:15px;background:rgba(120,120,130,.35);margin:0 2px;flex-shrink:0;}
+  .switcher-lang{display:flex;gap:0;}
+  .switcher-lang button{
+    border:none;background:transparent;color:var(--muted);font-size:10.5px;font-weight:700;
+    letter-spacing:.02em;padding:6px 8px;border-radius:14px;
+  }
+  .switcher-lang button.on{background:var(--accent-fill);color:#0b0d13;}
+  @media (max-width:480px){
+    .app-switcher{top:10px;right:10px;}
+  }
 
   /* Экран входа */
   .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -402,7 +486,7 @@
     background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
     padding:14px 16px;margin-bottom:10px;
   }
-  .stu-lesson.done{border-color:#2a5c46;}
+  .stu-lesson.done{border-color:var(--success-border);}
   .stu-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
   .stu-flags{display:flex;gap:6px;flex-wrap:wrap;}
   .flag{
@@ -410,9 +494,9 @@
     font-size:11.5px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);
     white-space:nowrap;
   }
-  .flag.ok{background:var(--success-dim);color:var(--success);border-color:#2a5c46;}
-  .flag.bad{background:var(--danger-dim);color:#ffb0b0;border-color:#5c2a2a;}
-  .flag.wait{background:#3a2f14;color:var(--warn);border-color:#5c4a1f;}
+  .flag.ok{background:var(--success-dim);color:var(--success);border-color:var(--success-border);}
+  .flag.bad{background:var(--danger-dim);color:var(--danger-soft-text);border-color:var(--danger-border);}
+  .flag.wait{background:var(--warn-dim);color:var(--warn);border-color:var(--warn-border);}
   .submission-box{
     margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);
   }
@@ -433,9 +517,9 @@
     text-align:center;padding:10px 16px;border-radius:12px;
     background:var(--surface2);border:1px solid var(--border);min-width:78px;
   }
-  .streak-box.hot{background:#3a2414;border-color:#6b4420;}
+  .streak-box.hot{background:var(--streak-bg);border-color:var(--streak-border);}
   .streak-num{font-size:26px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;}
-  .streak-box.hot .streak-num{color:#ff9040;}
+  .streak-box.hot .streak-num{color:var(--streak-text);}
   .streak-label{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap;}
 
   .badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px;}
@@ -467,10 +551,10 @@
     min-width:24px;height:24px;padding:0 6px;border-radius:7px;
     font-size:13px;font-weight:700;color:#0b0d13;background:var(--muted);
   }
-  .grade-5{background:var(--success);}
-  .grade-4{background:#8fd694;}
-  .grade-3{background:var(--warn);}
-  .grade-2{background:var(--danger);color:#fff;}
+  .grade-5{background:var(--success-fill);}
+  .grade-4{background:var(--grade4-fill);}
+  .grade-3{background:var(--warn-fill);}
+  .grade-2{background:var(--danger-fill);color:#fff;}
 
   /* Ссылка на видеовстречу */
   .meet-link{
@@ -495,7 +579,7 @@
     padding:8px 13px;border-radius:8px;font-size:13px;font-weight:500;
   }
   .seg:hover{color:var(--text);border-color:var(--accent-dim);filter:none;}
-  .seg.on{background:var(--accent);border-color:var(--accent);color:#0b0d13;}
+  .seg.on{background:var(--accent-fill);border-color:var(--accent-fill);color:#0b0d13;}
 
   /* Аналитика */
   .stats-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
@@ -526,7 +610,7 @@
   .slot-day-name{font-size:12.5px;color:var(--muted);margin-bottom:6px;text-transform:capitalize;}
   .slot-chips{display:flex;gap:6px;flex-wrap:wrap;}
   .slot-chip{
-    background:var(--success-dim);color:var(--success);border:1px solid #2a5c46;
+    background:var(--success-dim);color:var(--success);border:1px solid var(--success-border);
     padding:5px 10px;border-radius:7px;font-size:12.5px;font-variant-numeric:tabular-nums;
   }
   .slot-chip.busy{background:var(--surface2);color:var(--muted);border-color:var(--border);}
@@ -560,39 +644,47 @@
 </style>
 </head>
 <body>
+<div class="app-switcher" id="appSwitcher">
+  <button class="switcher-btn" id="themeToggleFab" onclick="toggleTheme()" title="Переключить тему" aria-label="Переключить тему">🌙</button>
+  <div class="switcher-div"></div>
+  <div class="switcher-lang" id="langSwitcher">
+    <button type="button" data-lang="ru" onclick="setLang('ru')">RU</button>
+    <button type="button" data-lang="en" onclick="setLang('en')">EN</button>
+  </div>
+</div>
 
 <!-- ЭКРАН ВХОДА -->
 <div id="authScreen" style="display:none;">
   <div class="auth-wrap">
     <div class="auth-card">
-      <h1 class="auth-title">Дневник преподавателя</h1>
-      <p class="auth-sub" id="authSub">Войдите, чтобы продолжить</p>
+      <h1 class="auth-title" data-i18n="teacherTitle">Дневник преподавателя</h1>
+      <p class="auth-sub" id="authSub" data-i18n="authSub">Войдите, чтобы продолжить</p>
 
       <div id="authTgBlock" style="display:none;margin-bottom:18px;">
-        <button class="btn-primary" style="width:100%;padding:12px;" onclick="loginWithTelegram()">
+        <button class="btn-primary" style="width:100%;padding:12px;" onclick="loginWithTelegram()" data-i18n="continueTg">
           Продолжить через Telegram
         </button>
-        <div class="auth-divider"><span>или по логину</span></div>
+        <div class="auth-divider"><span data-i18n="orByLogin">или по логину</span></div>
       </div>
 
       <div class="seg-row" id="authRoleRow" style="margin-bottom:16px;">
-        <button type="button" class="seg on" data-mode="login" onclick="setAuthMode('login')">Вход</button>
-        <button type="button" class="seg" data-mode="register" onclick="setAuthMode('register')">Регистрация</button>
+        <button type="button" class="seg on" data-mode="login" onclick="setAuthMode('login')" data-i18n="authLoginTab">Вход</button>
+        <button type="button" class="seg" data-mode="register" onclick="setAuthMode('register')" data-i18n="authRegisterTab">Регистрация</button>
       </div>
 
       <div class="field" id="authNameWrap" style="display:none;">
-        <label>Как вас зовут</label>
-        <input type="text" id="authName" placeholder="Имя">
+        <label data-i18n="yourName">Как вас зовут</label>
+        <input type="text" id="authName" placeholder="Имя" data-i18n-ph="namePh">
       </div>
       <div class="field">
-        <label>Логин</label>
-        <input type="text" id="authLogin" placeholder="например, ivan_teacher" autocapitalize="off" autocorrect="off">
+        <label data-i18n="loginLabel">Логин</label>
+        <input type="text" id="authLogin" placeholder="например, ivan_teacher" autocapitalize="off" autocorrect="off" data-i18n-ph="loginPh">
       </div>
       <div class="field">
-        <label>Пароль</label>
-        <input type="password" id="authPassword" placeholder="не короче 6 символов">
+        <label data-i18n="passwordLabel">Пароль</label>
+        <input type="password" id="authPassword" placeholder="не короче 6 символов" data-i18n-ph="passwordPh">
       </div>
-      <div class="muted-note" id="authRegNote" style="display:none;margin-bottom:12px;">
+      <div class="muted-note" id="authRegNote" style="display:none;margin-bottom:12px;" data-i18n="authRegNote">
         Регистрация только для преподавателей. Ученику доступ выдаёте вы —
         ссылкой или логином с паролем из его карточки.
       </div>
@@ -639,18 +731,18 @@
 <div id="studentApp" class="app" style="display:none;">
   <div class="top-nav">
     <div>
-      <h1 id="stuTitle">Мои занятия</h1>
+      <h1 id="stuTitle" data-i18n="stuTitle">Мои занятия</h1>
       <div class="sub" id="stuSub"></div>
     </div>
     <div class="top-actions">
-      <button class="btn-ghost" onclick="logout()">Выйти</button>
+      <button class="btn-ghost" onclick="logout()" data-i18n="logout">Выйти</button>
     </div>
   </div>
 
   <div class="tabs" style="margin-bottom:20px;width:fit-content;">
-    <button class="tab active" data-stuview="lessons" onclick="setStuView('lessons')">Занятия</button>
-    <button class="tab" data-stuview="progress" onclick="setStuView('progress')">Прогресс</button>
-    <button class="tab" data-stuview="calendar" onclick="setStuView('calendar')">Календарь</button>
+    <button class="tab active" data-stuview="lessons" onclick="setStuView('lessons')" data-i18n="tabLessons">Занятия</button>
+    <button class="tab" data-stuview="progress" onclick="setStuView('progress')" data-i18n="tabProgress">Прогресс</button>
+    <button class="tab" data-stuview="calendar" onclick="setStuView('calendar')" data-i18n="tabCalendar">Календарь</button>
   </div>
 
   <div id="stuProgressView" style="display:none;"></div>
@@ -659,9 +751,9 @@
     <div class="kpi-grid" id="stuKpis"></div>
 
     <div class="seg-row" id="stuFilterRow" style="margin-bottom:16px;">
-      <button type="button" class="seg on" data-f="all" onclick="setStuFilter('all')">Все</button>
-      <button type="button" class="seg" data-f="todo" onclick="setStuFilter('todo')">Нужно сдать</button>
-      <button type="button" class="seg" data-f="unpaid" onclick="setStuFilter('unpaid')">Не оплачено</button>
+      <button type="button" class="seg on" data-f="all" onclick="setStuFilter('all')" data-i18n="filterAll">Все</button>
+      <button type="button" class="seg" data-f="todo" onclick="setStuFilter('todo')" data-i18n="filterTodo">Нужно сдать</button>
+      <button type="button" class="seg" data-f="unpaid" onclick="setStuFilter('unpaid')" data-i18n="filterUnpaid">Не оплачено</button>
     </div>
 
     <div id="stuLessonList"></div>
@@ -671,16 +763,16 @@
     <div class="cal-header">
       <div class="cal-nav">
         <button class="btn-secondary btn-sm" onclick="stuCalShift(-1)">←</button>
-        <button class="btn-secondary btn-sm" onclick="stuCalToday()">Сегодня</button>
+        <button class="btn-secondary btn-sm" onclick="stuCalToday()" data-i18n="today">Сегодня</button>
         <button class="btn-secondary btn-sm" onclick="stuCalShift(1)">→</button>
       </div>
       <h2 id="stuCalLabel"></h2>
     </div>
     <div class="cal-weekdays">
-      <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+      <div data-i18n="wkMon">Пн</div><div data-i18n="wkTue">Вт</div><div data-i18n="wkWed">Ср</div><div data-i18n="wkThu">Чт</div><div data-i18n="wkFri">Пт</div><div data-i18n="wkSat">Сб</div><div data-i18n="wkSun">Вс</div>
     </div>
     <div class="cal-grid" id="stuCalGrid"></div>
-    <div class="section-label">Ближайшие занятия</div>
+    <div class="section-label" data-i18n="upcomingLessons">Ближайшие занятия</div>
     <div id="stuUpcoming"></div>
   </div>
 </div>
@@ -710,19 +802,19 @@
 
   <div class="top-nav">
     <div>
-      <h1>Дневник преподавателя</h1>
-      <div class="sub">Ученики, расписание, материалы и ИИ-ассистент</div>
+      <h1 data-i18n="teacherTitle">Дневник преподавателя</h1>
+      <div class="sub" data-i18n="teacherSub">Ученики, расписание, материалы и ИИ-ассистент</div>
     </div>
     <div class="tabs">
-      <button class="tab active" data-view="students" onclick="switchView('students')">Ученики</button>
-      <button class="tab" data-view="calendar" onclick="switchView('calendar')">Календарь</button>
-      <button class="tab" data-view="knowledge" onclick="switchView('knowledge')">База знаний</button>
-      <button class="tab" data-view="stats" onclick="switchView('stats')">Аналитика</button>
+      <button class="tab active" data-view="students" onclick="switchView('students')" data-i18n="tabStudents">Ученики</button>
+      <button class="tab" data-view="calendar" onclick="switchView('calendar')" data-i18n="tabCalendar">Календарь</button>
+      <button class="tab" data-view="knowledge" onclick="switchView('knowledge')" data-i18n="tabKnowledge">База знаний</button>
+      <button class="tab" data-view="stats" onclick="switchView('stats')" data-i18n="tabStats">Аналитика</button>
     </div>
     <div class="top-actions">
       <span id="syncStatus" class="muted-note"></span>
-      <button class="btn-ghost" onclick="openSettingsModal()">⚙ Настройки</button>
-      <button class="btn-primary" onclick="openStudentModal()">+ Ученик</button>
+      <button class="btn-ghost" onclick="openSettingsModal()" data-i18n="btnSettings">⚙ Настройки</button>
+      <button class="btn-primary" onclick="openStudentModal()" data-i18n="btnAddStudent">+ Ученик</button>
     </div>
   </div>
 
@@ -736,20 +828,20 @@
     <div class="cal-header">
       <div class="cal-nav">
         <button class="btn-secondary btn-sm" onclick="prevMonth()">←</button>
-        <button class="btn-secondary btn-sm" onclick="calToday()">Сегодня</button>
+        <button class="btn-secondary btn-sm" onclick="calToday()" data-i18n="today">Сегодня</button>
         <button class="btn-secondary btn-sm" onclick="nextMonth()">→</button>
       </div>
       <h2 id="calMonthLabel"></h2>
     </div>
     <div class="cal-weekdays">
-      <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+      <div data-i18n="wkMon">Пн</div><div data-i18n="wkTue">Вт</div><div data-i18n="wkWed">Ср</div><div data-i18n="wkThu">Чт</div><div data-i18n="wkFri">Пт</div><div data-i18n="wkSat">Сб</div><div data-i18n="wkSun">Вс</div>
     </div>
     <div class="cal-grid" id="calGrid"></div>
   </div>
 
   <!-- KNOWLEDGE: SUBJECTS -->
   <div id="knowledgeView" style="display:none;">
-    <div class="section-label" style="margin-top:0;">Предметы</div>
+    <div class="section-label" style="margin-top:0;" data-i18n="subjectsLabel">Предметы</div>
     <div id="subjectGrid"></div>
   </div>
 
@@ -787,13 +879,13 @@
   <div id="statsView" style="display:none;">
     <div class="stats-toolbar">
       <div class="seg-row" id="statsPeriodRow">
-        <button type="button" class="seg" data-period="day" onclick="setStatsPeriod('day')">День</button>
-        <button type="button" class="seg" data-period="week" onclick="setStatsPeriod('week')">Неделя</button>
-        <button type="button" class="seg" data-period="month" onclick="setStatsPeriod('month')">Месяц</button>
+        <button type="button" class="seg" data-period="day" onclick="setStatsPeriod('day')" data-i18n="periodDay">День</button>
+        <button type="button" class="seg" data-period="week" onclick="setStatsPeriod('week')" data-i18n="periodWeek">Неделя</button>
+        <button type="button" class="seg" data-period="month" onclick="setStatsPeriod('month')" data-i18n="periodMonth">Месяц</button>
       </div>
       <div class="cal-nav">
         <button class="btn-secondary btn-sm" onclick="statsShift(-1)">←</button>
-        <button class="btn-secondary btn-sm" onclick="statsToday()">Сейчас</button>
+        <button class="btn-secondary btn-sm" onclick="statsToday()" data-i18n="statsNow">Сейчас</button>
         <button class="btn-secondary btn-sm" onclick="statsShift(1)">→</button>
       </div>
       <span class="stats-period-label" id="statsPeriodLabel"></span>
@@ -802,30 +894,30 @@
     <div class="kpi-grid" id="statsKpis"></div>
 
     <div class="panel">
-      <h4 id="statsChartTitle">Загруженность</h4>
+      <h4 id="statsChartTitle" data-i18n="loadTitle">Загруженность</h4>
       <div id="statsLoadChart"></div>
     </div>
 
     <div class="panel-grid">
       <div class="panel">
-        <h4>Свободные окна</h4>
+        <h4 data-i18n="freeSlotsTitle">Свободные окна</h4>
         <div id="statsFreeSlots"></div>
       </div>
       <div class="panel">
-        <h4>По ученикам</h4>
+        <h4 data-i18n="byStudentTitle">По ученикам</h4>
         <div id="statsByStudent"></div>
       </div>
     </div>
 
     <div class="panel">
-      <h4>Заработок по месяцам</h4>
+      <h4 data-i18n="earningsTitle">Заработок по месяцам</h4>
       <div id="statsEarningsChart"></div>
     </div>
 
     <div class="panel" id="productMetricsPanel" style="display:none;">
-      <h4>Метрики сервиса</h4>
+      <h4 data-i18n="serviceMetrics">Метрики сервиса</h4>
       <div class="kpi-grid" id="productMetrics"></div>
-      <div class="muted-note" style="margin-top:6px;">
+      <div class="muted-note" style="margin-top:6px;" data-i18n="serviceMetricsNote">
         Активные пользователи по всему приложению — все преподаватели и ученики, а не только ваши.
       </div>
     </div>
@@ -873,17 +965,17 @@
 <!-- STUDENT MODAL -->
 <div class="modal-overlay" id="studentModalOverlay">
   <div class="modal">
-    <h3 id="studentModalTitle">Новый ученик</h3>
+    <h3 id="studentModalTitle" data-i18n="newStudentTitle">Новый ученик</h3>
     <div class="field">
-      <label>Имя ученика</label>
-      <input type="text" id="studentNameInput" placeholder="Например, Аня К.">
+      <label data-i18n="studentNameLabel">Имя ученика</label>
+      <input type="text" id="studentNameInput" placeholder="Например, Аня К." data-i18n-ph="studentNamePh">
     </div>
     <div class="field">
-      <label>Предмет</label>
-      <input type="text" id="studentSubjectInput" placeholder="Например, Математика">
+      <label data-i18n="subjectLabel">Предмет</label>
+      <input type="text" id="studentSubjectInput" placeholder="Например, Математика" data-i18n-ph="egMathPh">
     </div>
     <div class="field">
-      <label>Цвет карточки</label>
+      <label data-i18n="cardColorLabel">Цвет карточки</label>
       <div class="swatches" id="colorSwatches"></div>
     </div>
     <div class="field">
@@ -893,14 +985,14 @@
                  onchange="document.getElementById('studentShowPriceRow').classList.toggle('on', this.checked)">
         </span>
         <span class="switch-text">
-          <span class="switch-title">💰 Показывать стоимость ученику</span>
-          <span class="switch-sub">Если выключить, в кабинете ученика будет видно только «оплачено / не оплачено», без суммы. В вашей аналитике сумма останется</span>
+          <span class="switch-title" data-i18n="showPriceTitle">💰 Показывать стоимость ученику</span>
+          <span class="switch-sub" data-i18n="showPriceSub">Если выключить, в кабинете ученика будет видно только «оплачено / не оплачено», без суммы. В вашей аналитике сумма останется</span>
         </span>
       </label>
     </div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('studentModalOverlay')">Отмена</button>
-      <button class="btn-primary" onclick="saveStudent()">Сохранить</button>
+      <button class="btn-secondary" onclick="closeModal('studentModalOverlay')" data-i18n="cancel">Отмена</button>
+      <button class="btn-primary" onclick="saveStudent()" data-i18n="save">Сохранить</button>
     </div>
   </div>
 </div>
@@ -1058,10 +1150,10 @@
     <div id="dayModalBody"></div>
     <div class="day-add-row">
       <select id="dayAddStudentSelect"></select>
-      <button class="btn-primary btn-sm" onclick="addLessonFromDay()">+ Занятие</button>
+      <button class="btn-primary btn-sm" onclick="addLessonFromDay()" data-i18n="addLessonBtn">+ Занятие</button>
     </div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('dayModalOverlay')">Закрыть</button>
+      <button class="btn-secondary" onclick="closeModal('dayModalOverlay')" data-i18n="closeBtn">Закрыть</button>
     </div>
   </div>
 </div>
@@ -1083,18 +1175,18 @@
 <!-- SUBJECT MODAL -->
 <div class="modal-overlay" id="subjectModalOverlay">
   <div class="modal">
-    <h3 id="subjectModalTitle">Новый предмет</h3>
+    <h3 id="subjectModalTitle" data-i18n="newSubjectTitle">Новый предмет</h3>
     <div class="field">
-      <label>Название</label>
-      <input type="text" id="subjectNameInput" placeholder="Например, Математика">
+      <label data-i18n="nameLabel">Название</label>
+      <input type="text" id="subjectNameInput" placeholder="Например, Математика" data-i18n-ph="egMathPh">
     </div>
     <div class="field">
-      <label>Цвет</label>
+      <label data-i18n="colorLabel">Цвет</label>
       <div class="swatches" id="subjectSwatches"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('subjectModalOverlay')">Отмена</button>
-      <button class="btn-primary" onclick="saveSubject()">Сохранить</button>
+      <button class="btn-secondary" onclick="closeModal('subjectModalOverlay')" data-i18n="cancel">Отмена</button>
+      <button class="btn-primary" onclick="saveSubject()" data-i18n="save">Сохранить</button>
     </div>
   </div>
 </div>
@@ -1197,50 +1289,80 @@
   </div>
 </div>
 
+<!-- ОНБОРДИНГ ДЛЯ НОВЫХ ПРЕПОДАВАТЕЛЕЙ -->
+<div class="modal-overlay" id="onboardingModalOverlay">
+  <div class="modal">
+    <h3 data-i18n="obTitle">Добро пожаловать 👋</h3>
+    <p class="muted-note" style="margin-top:-8px;" data-i18n="obSub">Коротко — как всё устроено, четыре шага</p>
+
+    <div class="field" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:3px;" data-i18n="obStep1Title">1. Добавьте ученика</div>
+      <div class="muted-note" data-i18n="obStep1Text">Имя, предмет и цвет карточки — кнопка «+ Ученик» на главном экране.</div>
+    </div>
+    <div class="field" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:3px;" data-i18n="obStep2Title">2. Запланируйте занятие</div>
+      <div class="muted-note" data-i18n="obStep2Text">В карточке ученика или в календаре — дата, время, тема и домашнее задание.</div>
+    </div>
+    <div class="field" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:3px;" data-i18n="obStep3Title">3. Выдайте доступ ученику</div>
+      <div class="muted-note" data-i18n="obStep3Text">Кнопка «🔗 Пригласить» в карточке ученика — придёт ссылка, логин и пароль, чтобы он видел свои занятия и мог сдавать ДЗ.</div>
+    </div>
+    <div class="field" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:3px;" data-i18n="obStep4Title">4. Дальше — само</div>
+      <div class="muted-note" data-i18n="obStep4Text">Прогресс ученика, аналитика и напоминания считаются автоматически. Открыть эту подсказку снова можно из настроек.</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-primary" style="width:100%;" onclick="dismissOnboarding()" data-i18n="obDone">Понятно, начнём</button>
+    </div>
+  </div>
+</div>
+
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settingsModalOverlay">
   <div class="modal">
-    <h3>Настройки</h3>
+    <h3 data-i18n="settingsTitle">Настройки</h3>
+    <button type="button" class="btn-ghost btn-sm" style="margin:-6px 0 6px;padding-left:0;" onclick="showOnboardingAgain()" data-i18n="howToUse">❔ Как пользоваться приложением</button>
 
-    <div class="section-label" style="margin-top:0;">Рабочий график</div>
+    <div class="section-label" style="margin-top:0;" data-i18n="workSchedule">Рабочий график</div>
     <div class="field-row">
       <div class="field">
-        <label>Начало дня</label>
+        <label data-i18n="startOfDay">Начало дня</label>
         <input type="text" id="workStartInput" placeholder="10:00" maxlength="5">
       </div>
       <div class="field">
-        <label>Конец дня</label>
+        <label data-i18n="endOfDay">Конец дня</label>
         <input type="text" id="workEndInput" placeholder="21:00" maxlength="5">
       </div>
     </div>
     <div class="field">
-      <label>Рабочие дни</label>
+      <label data-i18n="workDaysLabel">Рабочие дни</label>
       <div class="seg-row" id="workDaysRow">
-        <button type="button" class="seg" data-day="1" onclick="toggleWorkDay(1)">Пн</button>
-        <button type="button" class="seg" data-day="2" onclick="toggleWorkDay(2)">Вт</button>
-        <button type="button" class="seg" data-day="3" onclick="toggleWorkDay(3)">Ср</button>
-        <button type="button" class="seg" data-day="4" onclick="toggleWorkDay(4)">Чт</button>
-        <button type="button" class="seg" data-day="5" onclick="toggleWorkDay(5)">Пт</button>
-        <button type="button" class="seg" data-day="6" onclick="toggleWorkDay(6)">Сб</button>
-        <button type="button" class="seg" data-day="7" onclick="toggleWorkDay(7)">Вс</button>
+        <button type="button" class="seg" data-day="1" onclick="toggleWorkDay(1)" data-i18n="wkMon">Пн</button>
+        <button type="button" class="seg" data-day="2" onclick="toggleWorkDay(2)" data-i18n="wkTue">Вт</button>
+        <button type="button" class="seg" data-day="3" onclick="toggleWorkDay(3)" data-i18n="wkWed">Ср</button>
+        <button type="button" class="seg" data-day="4" onclick="toggleWorkDay(4)" data-i18n="wkThu">Чт</button>
+        <button type="button" class="seg" data-day="5" onclick="toggleWorkDay(5)" data-i18n="wkFri">Пт</button>
+        <button type="button" class="seg" data-day="6" onclick="toggleWorkDay(6)" data-i18n="wkSat">Сб</button>
+        <button type="button" class="seg" data-day="7" onclick="toggleWorkDay(7)" data-i18n="wkSun">Вс</button>
       </div>
     </div>
     <div class="field">
-      <label>Длительность занятия по умолчанию</label>
+      <label data-i18n="defaultDurLabel">Длительность занятия по умолчанию</label>
       <div class="dur-row">
         <input type="text" inputmode="numeric" id="defaultDurationValue" placeholder="60"
                oninput="onDefaultDurationInput()" onblur="onDefaultDurationInput()">
         <div class="seg-row">
-          <button type="button" class="seg on" data-unit="min" onclick="pickDefaultDurationUnit('min')">мин</button>
-          <button type="button" class="seg" data-unit="hour" onclick="pickDefaultDurationUnit('hour')">ч</button>
+          <button type="button" class="seg on" data-unit="min" onclick="pickDefaultDurationUnit('min')" data-i18n="durMin">мин</button>
+          <button type="button" class="seg" data-unit="hour" onclick="pickDefaultDurationUnit('hour')" data-i18n="durHour">ч</button>
         </div>
       </div>
-      <div class="muted-note" id="defaultDurationHint" style="margin-top:6px;">Используется для новых занятий и для расчёта загруженности.</div>
+      <div class="muted-note" id="defaultDurationHint" style="margin-top:6px;" data-i18n="durHint">Используется для новых занятий и для расчёта загруженности.</div>
     </div>
 
-    <div class="section-label">ИИ-ассистент</div>
+    <div class="section-label" data-i18n="aiAssistant">ИИ-ассистент</div>
     <div class="field">
-      <label>Сервис ИИ-ассистента</label>
+      <label data-i18n="aiService">Сервис ИИ-ассистента</label>
       <select id="providerSelect" onchange="onProviderChange()"></select>
     </div>
     <div class="field" id="customBaseUrlWrap" style="display:none;">
@@ -1249,19 +1371,19 @@
       <div class="muted-note" style="margin-top:6px;">Адрес до <code>/chat/completions</code>. Например, для Ollama: <code>http://localhost:11434/v1</code></div>
     </div>
     <div class="field">
-      <label id="apiKeyLabel">API-ключ (хранится только на вашем устройстве)</label>
+      <label id="apiKeyLabel" data-i18n="apiKeyLabel">API-ключ (хранится только на вашем устройстве)</label>
       <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
     </div>
     <div class="field">
-      <label>Модель</label>
+      <label data-i18n="modelLabel">Модель</label>
       <input type="text" id="modelInput" placeholder="claude-sonnet-5">
     </div>
-    <div class="muted-note" id="providerNote">Ключ отправляется напрямую из вашего браузера в выбранный сервис. Больше никуда он не передаётся.</div>
-    <div class="muted-note" id="cloudNote" style="margin-top:8px;display:none;">Приложение открыто в Telegram: данные синхронизируются через облако Telegram и видны на всех ваших устройствах. Место ограничено (~4 МБ) — для больших фото и файлов лучше добавлять ссылку, а не загружать сам файл.</div>
+    <div class="muted-note" id="providerNote" data-i18n="providerNoteTxt">Ключ отправляется напрямую из вашего браузера в выбранный сервис. Больше никуда он не передаётся.</div>
+    <div class="muted-note" id="cloudNote" style="margin-top:8px;display:none;" data-i18n="cloudNoteTxt">Приложение открыто в Telegram: данные синхронизируются через облако Telegram и видны на всех ваших устройствах. Место ограничено (~4 МБ) — для больших фото и файлов лучше добавлять ссылку, а не загружать сам файл.</div>
 
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('settingsModalOverlay')">Отмена</button>
-      <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
+      <button class="btn-secondary" onclick="closeModal('settingsModalOverlay')" data-i18n="cancel">Отмена</button>
+      <button class="btn-primary" onclick="saveSettings()" data-i18n="save">Сохранить</button>
     </div>
   </div>
 </div>
@@ -1289,6 +1411,266 @@ const SUPABASE_SYNC_FUNCTION = 'hyper-handler';
 
 const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 const USE_CLOUD = !!(tg && tg.initData && tg.initData.length > 0 && tg.CloudStorage);
+
+/* ---------- ТЁМНАЯ / СВЕТЛАЯ ТЕМА ----------
+   Личная настройка этого браузера/устройства, а не данные преподавателя —
+   поэтому хранится в localStorage, а не синхронизируется через Supabase.
+   Работает одинаково на экране входа, в кабинете ученика и в демо-режиме. */
+const THEME_KEY = 'tutor_diary_theme';
+function getStoredTheme(){
+  try{
+    const v = localStorage.getItem(THEME_KEY);
+    if(v === 'light' || v === 'dark') return v;
+  }catch(e){}
+  return 'dark'; // прежнее поведение приложения — по умолчанию тёмная
+}
+function applyTheme(mode){
+  document.documentElement.setAttribute('data-theme', mode);
+  const btn = document.getElementById('themeToggleFab');
+  if(btn) btn.textContent = mode === 'light' ? '🌙' : '☀️'; // показывает, во что переключит клик
+  if(tg){
+    const chrome = mode === 'light'
+      ? { header:'#ffffff', bg:'#f8f7f4' }
+      : { header:'#171a23', bg:'#0f1117' };
+    try{ tg.setHeaderColor && tg.setHeaderColor(chrome.header); }catch(e){}
+    try{ tg.setBackgroundColor && tg.setBackgroundColor(chrome.bg); }catch(e){}
+  }
+}
+function toggleTheme(){
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+  applyTheme(next);
+}
+
+/* ---------- ЯЗЫК ИНТЕРФЕЙСА (RU / EN) ----------
+   Тоже личная настройка браузера, живёт рядом с темой в той же капсуле.
+   Переведена основная навигация, вход и подсказка для новых — остальные
+   экраны (карточки занятий, аналитика, база знаний) пока только на русском,
+   переведём следующим шагом. */
+const LANG_KEY = 'tutor_diary_lang';
+let currentLang = 'ru';
+const I18N = {
+  stuTitle:        { ru:'Мои занятия', en:'My lessons' },
+  logout:          { ru:'Выйти', en:'Log out' },
+  tabLessons:      { ru:'Занятия', en:'Lessons' },
+  tabProgress:     { ru:'Прогресс', en:'Progress' },
+  tabCalendar:     { ru:'Календарь', en:'Calendar' },
+  filterAll:       { ru:'Все', en:'All' },
+  filterTodo:      { ru:'Нужно сдать', en:'Needs submission' },
+  filterUnpaid:    { ru:'Не оплачено', en:'Unpaid' },
+  today:           { ru:'Сегодня', en:'Today' },
+  wkMon: { ru:'Пн', en:'Mon' }, wkTue: { ru:'Вт', en:'Tue' }, wkWed: { ru:'Ср', en:'Wed' },
+  wkThu: { ru:'Чт', en:'Thu' }, wkFri: { ru:'Пт', en:'Fri' }, wkSat: { ru:'Сб', en:'Sat' }, wkSun: { ru:'Вс', en:'Sun' },
+  upcomingLessons: { ru:'Ближайшие занятия', en:'Upcoming lessons' },
+  teacherTitle:    { ru:'Дневник преподавателя', en:'Tutor Diary' },
+  teacherSub:      { ru:'Ученики, расписание, материалы и ИИ-ассистент', en:'Students, schedule, materials and AI assistant' },
+  tabStudents:     { ru:'Ученики', en:'Students' },
+  tabKnowledge:    { ru:'База знаний', en:'Knowledge base' },
+  tabStats:        { ru:'Аналитика', en:'Analytics' },
+  btnSettings:     { ru:'⚙ Настройки', en:'⚙ Settings' },
+  btnAddStudent:   { ru:'+ Ученик', en:'+ Student' },
+  authSub:         { ru:'Войдите, чтобы продолжить', en:'Sign in to continue' },
+  continueTg:      { ru:'Продолжить через Telegram', en:'Continue with Telegram' },
+  orByLogin:       { ru:'или по логину', en:'or by login' },
+  authLoginTab:    { ru:'Вход', en:'Sign in' },
+  authRegisterTab: { ru:'Регистрация', en:'Register' },
+  yourName:        { ru:'Как вас зовут', en:'Your name' },
+  namePh:          { ru:'Имя', en:'Name' },
+  loginLabel:      { ru:'Логин', en:'Login' },
+  loginPh:         { ru:'например, ivan_teacher', en:'e.g. ivan_teacher' },
+  passwordLabel:   { ru:'Пароль', en:'Password' },
+  passwordPh:      { ru:'не короче 6 символов', en:'at least 6 characters' },
+  authRegNote:     { ru:'Регистрация только для преподавателей. Ученику доступ выдаёте вы — ссылкой или логином с паролем из его карточки.',
+                     en:'Registration is for tutors only. You grant student access — via a link, or a login and password from their card.' },
+  createAccount:   { ru:'Создать аккаунт', en:'Create account' },
+  login:           { ru:'Войти', en:'Sign in' },
+  obTitle:         { ru:'Добро пожаловать 👋', en:'Welcome 👋' },
+  obSub:           { ru:'Коротко — как всё устроено, четыре шага', en:'A quick overview — four steps' },
+  obStep1Title:    { ru:'1. Добавьте ученика', en:'1. Add a student' },
+  obStep1Text:     { ru:'Имя, предмет и цвет карточки — кнопка «+ Ученик» на главном экране.',
+                     en:'Name, subject and card color — the "+ Student" button on the main screen.' },
+  obStep2Title:    { ru:'2. Запланируйте занятие', en:'2. Schedule a lesson' },
+  obStep2Text:     { ru:'В карточке ученика или в календаре — дата, время, тема и домашнее задание.',
+                     en:'From the student card or the calendar — date, time, topic and homework.' },
+  obStep3Title:    { ru:'3. Выдайте доступ ученику', en:'3. Grant the student access' },
+  obStep3Text:     { ru:'Кнопка «🔗 Пригласить» в карточке ученика — придёт ссылка, логин и пароль, чтобы он видел свои занятия и мог сдавать ДЗ.',
+                     en:'The "🔗 Invite" button on the student card sends a link, login and password so they can see their lessons and submit homework.' },
+  obStep4Title:    { ru:'4. Дальше — само', en:'4. The rest is automatic' },
+  obStep4Text:     { ru:'Прогресс ученика, аналитика и напоминания считаются автоматически. Открыть эту подсказку снова можно из настроек.',
+                     en:'Progress, analytics and reminders are calculated automatically. Reopen this guide anytime from Settings.' },
+  obDone:          { ru:'Понятно, начнём', en:"Got it, let's start" },
+  howToUse:        { ru:'❔ Как пользоваться приложением', en:'❔ How to use the app' },
+
+  // Настройки
+  settingsTitle:   { ru:'Настройки', en:'Settings' },
+  workSchedule:    { ru:'Рабочий график', en:'Work schedule' },
+  startOfDay:      { ru:'Начало дня', en:'Start of day' },
+  endOfDay:        { ru:'Конец дня', en:'End of day' },
+  workDaysLabel:   { ru:'Рабочие дни', en:'Working days' },
+  defaultDurLabel: { ru:'Длительность занятия по умолчанию', en:'Default lesson duration' },
+  durMin:          { ru:'мин', en:'min' },
+  durHour:         { ru:'ч', en:'hr' },
+  durHint:         { ru:'Используется для новых занятий и для расчёта загруженности.', en:'Used for new lessons and workload calculations.' },
+  aiAssistant:     { ru:'ИИ-ассистент', en:'AI assistant' },
+  aiService:       { ru:'Сервис ИИ-ассистента', en:'AI service' },
+  apiKeyLabel:     { ru:'API-ключ (хранится только на вашем устройстве)', en:'API key (stored only on your device)' },
+  modelLabel:      { ru:'Модель', en:'Model' },
+  providerNoteTxt: { ru:'Ключ отправляется напрямую из вашего браузера в выбранный сервис. Больше никуда он не передаётся.', en:'The key is sent directly from your browser to the selected service. It is never sent anywhere else.' },
+  cloudNoteTxt:    { ru:'Приложение открыто в Telegram: данные синхронизируются через облако Telegram и видны на всех ваших устройствах. Место ограничено (~4 МБ) — для больших фото и файлов лучше добавлять ссылку, а не загружать сам файл.', en:'Opened inside Telegram: data syncs via Telegram cloud storage and is visible on all your devices. Storage is limited (~4 MB) — for large photos and files, add a link instead of uploading the file itself.' },
+  cancel:          { ru:'Отмена', en:'Cancel' },
+  save:            { ru:'Сохранить', en:'Save' },
+
+  // Календарь и модалка дня
+  noLessons:       { ru:'Занятий нет.', en:'No lessons.' },
+  pickStudentFirst:{ ru:'Сначала добавьте ученика', en:'Add a student first' },
+  addLessonBtn:    { ru:'+ Занятие', en:'+ Lesson' },
+  closeBtn:        { ru:'Закрыть', en:'Close' },
+
+  // База знаний
+  subjectsLabel:   { ru:'Предметы', en:'Subjects' },
+  addSubjectBtn:   { ru:'Добавить предмет', en:'Add subject' },
+  addFirstStudent: { ru:'Добавить первого ученика', en:'Add your first student' },
+
+  // Аналитика
+  periodDay:       { ru:'День', en:'Day' },
+  periodWeek:      { ru:'Неделя', en:'Week' },
+  periodMonth:     { ru:'Месяц', en:'Month' },
+  statsNow:        { ru:'Сейчас', en:'Now' },
+  loadTitle:       { ru:'Загруженность', en:'Workload' },
+  daySchedule:     { ru:'Расписание дня', en:"Day's schedule" },
+  loadByDay:       { ru:'Загруженность по дням', en:'Workload by day' },
+  freeSlotsTitle:  { ru:'Свободные окна', en:'Free time slots' },
+  byStudentTitle:  { ru:'По ученикам', en:'By student' },
+  earningsTitle:   { ru:'Заработок по месяцам', en:'Earnings by month' },
+  serviceMetrics:  { ru:'Метрики сервиса', en:'Service metrics' },
+  serviceMetricsNote: { ru:'Активные пользователи по всему приложению — все преподаватели и ученики, а не только ваши.', en:'Active users across the whole app — all tutors and students, not just yours.' },
+  kpiLessons:      { ru:'Занятий', en:'Lessons' },
+  kpiHours:        { ru:'Часов', en:'Hours' },
+  kpiEarned:       { ru:'Заработано', en:'Earned' },
+  kpiPending:      { ru:'Ожидает оплаты', en:'Awaiting payment' },
+  kpiLoad:         { ru:'Загруженность', en:'Workload' },
+  allChecked:      { ru:'всё проверено', en:'all checked' },
+  noDebts:         { ru:'долгов нет', en:'no debts' },
+  notPaid:         { ru:'не оплачено', en:'not paid' },
+  paidLessonsSub:  { ru:'оплаченные занятия', en:'paid lessons' },
+  noLessonsFreeDay:{ ru:'Занятий нет — день полностью свободен.', en:'No lessons — the day is completely free.' },
+  dayOffTxt:       { ru:'Выходной день.', en:'Day off.' },
+  noWorkDaysPeriod:{ ru:'В этот период нет рабочих дней. Настроить можно в ⚙ Настройках.', en:'No working days in this period. You can adjust this in ⚙ Settings.' },
+  allMonthDaysPast:{ ru:'Все дни месяца уже прошли.', en:'All days of the month are already past.' },
+  fullyBusyDay:    { ru:'день занят полностью', en:'fully booked' },
+  noLessonsInPeriod:{ ru:'В этот период занятий не было.', en:'No lessons in this period.' },
+  noPriceDataYet:  { ru:'Пока нет данных о стоимости занятий. Указывайте цену — и здесь появится график.', en:'No pricing data yet. Add a price and a chart will appear here.' },
+  fullDayCap:      { ru:'полный день', en:'full day' },
+  legendWorkDay:   { ru:'рабочий день', en:'working day' },
+  legendWeekendLesson: { ru:'занятие в выходной', en:'lesson on a day off' },
+  legendReceived:  { ru:'получено', en:'received' },
+  legendAwaiting:  { ru:'ожидает оплаты', en:'awaiting payment' },
+  noLessonsYetHint:{ ru:'Пока нет занятий. Нажмите «+ Занятие», чтобы добавить первое.', en:'No lessons yet. Click "+ Lesson" to add the first one.' },
+  withUncheckedHw: { ru:' с непровер. ДЗ', en:' ungraded' },
+  lessonsAbbrev:   { ru:'зан.', en:'lsn.' },
+  levelLabel:      { ru:'Уровень', en:'Level' },
+  pointsWord:      { ru:'очков', en:'points' },
+  streakLabel:     { ru:'Серия', en:'Streak' },
+  noAchievementsYet: { ru:'достижений пока нет', en:'no achievements yet' },
+  conductedLabel:  { ru:'проведено', en:'held' },
+  homeworkLabel:   { ru:'Домашние задания', en:'Homework' },
+  awaitingReview:  { ru:'ждут проверки', en:'awaiting review' },
+  paymentLabel:    { ru:'Оплата', en:'Payment' },
+
+  // Модалка ученика
+  newStudentTitle: { ru:'Новый ученик', en:'New student' },
+  editStudentTitle:{ ru:'Изменить ученика', en:'Edit student' },
+  studentNameLabel:{ ru:'Имя ученика', en:"Student's name" },
+  studentNamePh:   { ru:'Например, Аня К.', en:'e.g. Anna K.' },
+  subjectLabel:    { ru:'Предмет', en:'Subject' },
+  egMathPh:        { ru:'Например, Математика', en:'e.g. Math' },
+  cardColorLabel:  { ru:'Цвет карточки', en:'Card color' },
+  showPriceTitle:  { ru:'💰 Показывать стоимость ученику', en:'💰 Show price to student' },
+  showPriceSub:    { ru:'Если выключить, в кабинете ученика будет видно только «оплачено / не оплачено», без суммы. В вашей аналитике сумма останется', en:'If turned off, the student will only see "paid / unpaid" without the amount. The amount still shows in your analytics' },
+
+  // Модалка предмета
+  newSubjectTitle: { ru:'Новый предмет', en:'New subject' },
+  editSubjectTitle:{ ru:'Изменить предмет', en:'Edit subject' },
+  nameLabel:       { ru:'Название', en:'Name' },
+  colorLabel:      { ru:'Цвет', en:'Color' },
+
+  // Кабинет ученика (динамика)
+  recordLabel:     { ru:'рекорд', en:'record' },
+  inARowLabel:     { ru:'заданий подряд', en:'assignments in a row' },
+  hwSubmittedLabel:{ ru:'Сдано ДЗ', en:'Homework submitted' },
+  checkedLabel:    { ru:'проверено', en:'checked' },
+  toPayLabel:      { ru:'К оплате', en:'To pay' },
+  unpaidAbbrev:    { ru:'не опл.', en:'unpaid' },
+  allPaid:         { ru:'всё оплачено', en:'all paid' },
+  emptyHereYet:    { ru:'Здесь пока пусто.', en:'Nothing here yet.' },
+  dateNotSet:      { ru:'Дата не указана', en:'Date not set' },
+  paid:            { ru:'Оплачено', en:'Paid' },
+  unpaid:          { ru:'Не оплачено', en:'Unpaid' },
+  hwCheckedFlag:   { ru:'ДЗ проверено', en:'Homework checked' },
+  hwSubmittedWaitFlag: { ru:'Сдано, ждёт проверки', en:'Submitted, awaiting review' },
+  hwNotSubmittedFlag: { ru:'ДЗ не сдано', en:'Homework not submitted' },
+  topicLabel:      { ru:'Тема:', en:'Topic:' },
+  joinLessonLink:  { ru:'Подключиться к занятию', en:'Join the lesson' },
+  commentLabel:    { ru:'Комментарий:', en:'Comment:' },
+  assignedLabel:   { ru:'Задано', en:'Assigned' },
+  editWorkBtn:     { ru:'Изменить работу', en:'Edit submission' },
+  submitWorkBtn:   { ru:'Сдать работу', en:'Submit work' },
+  myWorkLabel:     { ru:'Моя работа', en:'My submission' }
+};
+function t(key){
+  const entry = I18N[key];
+  if(!entry) return key;
+  return entry[currentLang] || entry.ru;
+}
+function localeTag(){ return currentLang === 'en' ? 'en-US' : 'ru-RU'; }
+function getStoredLang(){
+  try{
+    const v = localStorage.getItem(LANG_KEY);
+    if(v === 'en' || v === 'ru') return v;
+  }catch(e){}
+  return 'ru';
+}
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{
+    el.placeholder = t(el.getAttribute('data-i18n-ph'));
+  });
+  document.querySelectorAll('#langSwitcher button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.lang === currentLang);
+  });
+  // Кнопки, текст которых меняется скриптом (вход/регистрация), нужно
+  // пересчитать отдельно — data-i18n их не достаёт.
+  if(document.getElementById('authSubmitBtn')) setAuthMode(authMode);
+}
+function setLang(l){
+  currentLang = (l === 'en') ? 'en' : 'ru';
+  try{ localStorage.setItem(LANG_KEY, currentLang); }catch(e){}
+  applyLang();
+  refreshCurrentView();
+}
+/* Статические подписи обновляет applyLang(), но списки занятий, календарь,
+   аналитику и т.п. приложение рисует через innerHTML — их нужно перерисовать
+   заново, иначе после переключения языка они останутся на старом. */
+function refreshCurrentView(){
+  try{
+    if(me && me.role === 'student'){
+      renderStudentCabinet();
+      return;
+    }
+    const visible = id => { const el = document.getElementById(id); return el && el.style.display !== 'none'; };
+    if(visible('calendarView')) renderCalendar();
+    else if(visible('statsView')) renderStats();
+    else if(visible('subjectView')) renderTopics();
+    else if(visible('knowledgeView')) renderSubjects();
+    else if(visible('detailView')) renderDetail();
+    else if(visible('listView')) renderGrid();
+    if(document.getElementById('dayModalOverlay') && document.getElementById('dayModalOverlay').classList.contains('open') && currentDayDate){
+      openDayModal(currentDayDate);
+    }
+  }catch(e){}
+}
 
 let data = { students: [], settings: {} };
 let currentStudentId = null;
@@ -1534,7 +1916,7 @@ function setAuthMode(mode){
     .forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
   document.getElementById('authNameWrap').style.display = mode==='register' ? 'block' : 'none';
   document.getElementById('authRegNote').style.display = mode==='register' ? 'block' : 'none';
-  document.getElementById('authSubmitBtn').textContent = mode==='register' ? 'Создать аккаунт' : 'Войти';
+  document.getElementById('authSubmitBtn').textContent = mode==='register' ? t('createAccount') : t('login');
   document.getElementById('authError').textContent = '';
 }
 function authError(msg){ document.getElementById('authError').textContent = msg || ''; }
@@ -1654,7 +2036,27 @@ async function afterSignIn(){
     normalize();
     await migrateLocalDataIfAny();
     switchView('students');
+    maybeShowOnboarding();
   }
+}
+
+/* Короткая подсказка для тех, кто только зашёл: показывается один раз,
+   пока у преподавателя ещё нет ни одного ученика. Открыть заново можно
+   из настроек. */
+function maybeShowOnboarding(){
+  if(demoMode) return;
+  if(data.settings.onboardingSeen) return;
+  if((data.students||[]).length > 0) return;
+  openModal('onboardingModalOverlay');
+}
+function dismissOnboarding(){
+  data.settings.onboardingSeen = true;
+  save();
+  closeModal('onboardingModalOverlay');
+}
+function showOnboardingAgain(){
+  closeModal('settingsModalOverlay');
+  openModal('onboardingModalOverlay');
 }
 
 function showAuthScreen(){
@@ -1921,11 +2323,12 @@ function showDemoBanner(){
 }
 
 async function init(){
+  applyTheme(getStoredTheme());
+  currentLang = getStoredLang();
+  applyLang();
   if(tg){
     try{ tg.ready(); }catch(e){}
     try{ tg.expand(); }catch(e){}
-    try{ tg.setHeaderColor && tg.setHeaderColor('#0f1117'); }catch(e){}
-    try{ tg.setBackgroundColor && tg.setBackgroundColor('#0f1117'); }catch(e){}
     try{ tg.disableVerticalSwipes && tg.disableVerticalSwipes(); }catch(e){}
   }
 
@@ -1944,6 +2347,7 @@ async function init(){
     normalize();
     document.getElementById('teacherApp').style.display = 'block';
     switchView('students');
+    maybeShowOnboarding();
     return;
   }
 
@@ -2038,7 +2442,7 @@ function formatDate(d){
 }
 function formatDateLong(dateStr){
   const d = new Date(dateStr+'T00:00:00');
-  const s = d.toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric', weekday:'long'});
+  const s = d.toLocaleDateString(localeTag(), {day:'numeric', month:'long', year:'numeric', weekday:'long'});
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 function escapeHtml(str){
@@ -2106,7 +2510,7 @@ function renderGrid(){
   if(data.students.length === 0){
     grid.innerHTML = `<div class="add-card" onclick="openStudentModal()" style="grid-column:1/-1;">
       <div class="plus">+</div>
-      <div>Добавить первого ученика</div>
+      <div>${t('addFirstStudent')}</div>
     </div>`;
     return;
   }
@@ -2401,22 +2805,22 @@ function renderStudentStats(s){
   const gotBadges = g.badges.filter(b=>b.got);
 
   box.innerHTML = `
-    <div class="kpi accent"><div class="k-label">${g.icon} Уровень ${g.level}</div>
+    <div class="kpi accent"><div class="k-label">${g.icon} ${t('levelLabel')} ${g.level}</div>
       <div class="k-value">${g.xp}</div>
-      <div class="k-sub">${escapeHtml(g.name)} · очков</div>
+      <div class="k-sub">${escapeHtml(g.name)} · ${t('pointsWord')}</div>
       <div class="load-bar"><span style="width:${Math.round(g.progress*100)}%"></span></div></div>
-    <div class="kpi ${g.streak>0?'good':''}"><div class="k-label">Серия</div>
+    <div class="kpi ${g.streak>0?'good':''}"><div class="k-label">${t('streakLabel')}</div>
       <div class="k-value">${g.streak}${g.streak>0?' 🔥':''}</div>
-      <div class="k-sub">${gotBadges.length ? gotBadges.slice(-4).map(b=>b.icon).join(' ') : 'достижений пока нет'}</div></div>
-    <div class="kpi"><div class="k-label">Занятий</div><div class="k-value">${st.total}</div>
-      <div class="k-sub">проведено: ${st.past} · ${formatDuration(st.minutes)}</div></div>
-    <div class="kpi ${st.pending>0?'warn':'good'}"><div class="k-label">Домашние задания</div>
+      <div class="k-sub">${gotBadges.length ? gotBadges.slice(-4).map(b=>b.icon).join(' ') : t('noAchievementsYet')}</div></div>
+    <div class="kpi"><div class="k-label">${t('kpiLessons')}</div><div class="k-value">${st.total}</div>
+      <div class="k-sub">${t('conductedLabel')}: ${st.past} · ${formatDuration(st.minutes)}</div></div>
+    <div class="kpi ${st.pending>0?'warn':'good'}"><div class="k-label">${t('homeworkLabel')}</div>
       <div class="k-value">${st.checked}/${st.withHw}</div>
-      <div class="k-sub">${st.pending>0 ? st.pending+' ждут проверки' : 'всё проверено'}</div>
+      <div class="k-sub">${st.pending>0 ? st.pending+' '+t('awaitingReview') : t('allChecked')}</div>
       ${st.withHw ? `<div class="load-bar"><span style="width:${Math.round(st.checked/st.withHw*100)}%"></span></div>` : ''}</div>
-    <div class="kpi ${st.unpaid>0?'warn':'good'}"><div class="k-label">Оплата</div>
-      <div class="k-value">${st.unpaid.toLocaleString('ru-RU')} ₽</div>
-      <div class="k-sub">${st.unpaid>0 ? 'ожидает оплаты' : 'долгов нет'} · получено ${st.earned.toLocaleString('ru-RU')} ₽</div></div>
+    <div class="kpi ${st.unpaid>0?'warn':'good'}"><div class="k-label">${t('paymentLabel')}</div>
+      <div class="k-value">${st.unpaid.toLocaleString(localeTag())} ₽</div>
+      <div class="k-sub">${st.unpaid>0 ? t('legendAwaiting') : t('noDebts')} · ${t('legendReceived')} ${st.earned.toLocaleString(localeTag())} ₽</div></div>
   `;
 }
 
@@ -2425,7 +2829,7 @@ function renderLessons(s){
   list.innerHTML = '';
 
   if(s.lessons.length === 0){
-    list.innerHTML = `<div class="empty-state">Пока нет занятий. Нажмите «+ Занятие», чтобы добавить первое.</div>`;
+    list.innerHTML = `<div class="empty-state">${t('noLessonsYetHint')}</div>`;
     return;
   }
 
@@ -2512,7 +2916,7 @@ function togglePaid(lessonId){
 function openStudentModal(id){
   editingStudentId = id || null;
   const s = id ? data.students.find(x=>x.id===id) : null;
-  document.getElementById('studentModalTitle').textContent = s ? 'Изменить ученика' : 'Новый ученик';
+  document.getElementById('studentModalTitle').textContent = s ? t('editStudentTitle') : t('newStudentTitle');
   document.getElementById('studentNameInput').value = s ? s.name : '';
   document.getElementById('studentSubjectInput').value = s ? (s.subject||'') : '';
   selectedColor = s ? s.color : COLORS[data.students.length % COLORS.length];
@@ -2596,7 +3000,7 @@ function pickerMonthShift(delta){
 }
 function renderDatePicker(){
   const y = pkCursor.getFullYear(), m = pkCursor.getMonth();
-  const label = pkCursor.toLocaleDateString('ru-RU', { month:'long', year:'numeric' });
+  const label = pkCursor.toLocaleDateString(localeTag(), { month:'long', year:'numeric' });
   document.getElementById('pkMonthLabel').textContent = label;
 
   const firstWeekday = (new Date(y, m, 1).getDay() + 6) % 7; // понедельник = 0
@@ -3854,7 +4258,7 @@ function renderGamePanel(g, containerId){
   if(!box) return;
   const nextText = g.xpToNext === null
     ? 'Максимальный уровень!'
-    : `${g.xpInLevel} / ${g.xpToNext} очков до следующего уровня`;
+    : `Ещё ${g.xpToNext - g.xpInLevel} очков до уровня ${g.level + 1}`;
 
   const maxWeek = Math.max(1, ...g.weeks.map(w=>w.xp));
   const W = 420, H = 120, padB = 22;
@@ -3971,7 +4375,7 @@ function stuCalToday(){
 }
 function renderStuCalendar(){
   const y = stuCalCursor.getFullYear(), m = stuCalCursor.getMonth();
-  const label = stuCalCursor.toLocaleDateString('ru-RU', { month:'long', year:'numeric' });
+  const label = stuCalCursor.toLocaleDateString(localeTag(), { month:'long', year:'numeric' });
   document.getElementById('stuCalLabel').textContent = label.charAt(0).toUpperCase() + label.slice(1);
 
   const firstWeekday = (new Date(y,m,1).getDay() + 6) % 7;
@@ -4042,21 +4446,21 @@ function renderStudentCabinet(){
   const showPrice = stuShowPrice();
 
   document.getElementById('stuKpis').innerHTML = `
-    <div class="kpi accent"><div class="k-label">${g.icon} Уровень ${g.level}</div>
+    <div class="kpi accent"><div class="k-label">${g.icon} ${t('levelLabel')} ${g.level}</div>
       <div class="k-value">${g.xp}</div>
-      <div class="k-sub">${escapeHtml(g.name)} · очков</div>
+      <div class="k-sub">${escapeHtml(g.name)} · ${t('pointsWord')}</div>
       <div class="load-bar"><span style="width:${Math.round(g.progress*100)}%"></span></div></div>
-    <div class="kpi ${g.streak>0?'good':''}"><div class="k-label">Серия</div>
+    <div class="kpi ${g.streak>0?'good':''}"><div class="k-label">${t('streakLabel')}</div>
       <div class="k-value">${g.streak}${g.streak>0?' 🔥':''}</div>
-      <div class="k-sub">${g.best>g.streak ? 'рекорд: '+g.best : 'заданий подряд'}</div></div>
-    <div class="kpi good"><div class="k-label">Сдано ДЗ</div><div class="k-value">${submitted}/${withHw.length}</div>
-      <div class="k-sub">проверено: ${checked}</div></div>
-    <div class="kpi ${todo>0?'warn':''}"><div class="k-label">Нужно сдать</div><div class="k-value">${todo}</div></div>
+      <div class="k-sub">${g.best>g.streak ? t('recordLabel')+': '+g.best : t('inARowLabel')}</div></div>
+    <div class="kpi good"><div class="k-label">${t('hwSubmittedLabel')}</div><div class="k-value">${submitted}/${withHw.length}</div>
+      <div class="k-sub">${t('checkedLabel')}: ${checked}</div></div>
+    <div class="kpi ${todo>0?'warn':''}"><div class="k-label">${t('filterTodo')}</div><div class="k-value">${todo}</div></div>
     ${showPrice
-      ? `<div class="kpi ${unpaidSum>0?'warn':'good'}"><div class="k-label">К оплате</div>
-          <div class="k-value">${unpaidSum.toLocaleString('ru-RU')} ₽</div></div>`
-      : `<div class="kpi ${unpaidCount>0?'warn':'good'}"><div class="k-label">Оплата</div>
-          <div class="k-value">${unpaidCount>0 ? unpaidCount+' не опл.' : 'всё оплачено'}</div></div>`}
+      ? `<div class="kpi ${unpaidSum>0?'warn':'good'}"><div class="k-label">${t('toPayLabel')}</div>
+          <div class="k-value">${unpaidSum.toLocaleString(localeTag())} ₽</div></div>`
+      : `<div class="kpi ${unpaidCount>0?'warn':'good'}"><div class="k-label">${t('paymentLabel')}</div>
+          <div class="k-value">${unpaidCount>0 ? unpaidCount+' '+t('unpaidAbbrev') : t('allPaid')}</div></div>`}
   `;
 
   let list = stuLessons;
@@ -4065,7 +4469,7 @@ function renderStudentCabinet(){
 
   const box = document.getElementById('stuLessonList');
   if(!list.length){
-    box.innerHTML = '<div class="empty-state">Здесь пока пусто.</div>';
+    box.innerHTML = `<div class="empty-state">${t('emptyHereYet')}</div>`;
     return;
   }
 
@@ -4076,34 +4480,34 @@ function renderStudentCabinet(){
       <div class="stu-lesson ${l.checked?'done':''}">
         <div class="stu-top">
           <div>
-            <span class="lesson-date">${formatDate(l.date) || 'Дата не указана'}</span>
+            <span class="lesson-date">${formatDate(l.date) || t('dateNotSet')}</span>
             ${l.time ? `<span class="lesson-time">${l.time}</span>` : ''}
           </div>
           <div class="stu-flags">
-            ${l.paid ? '<span class="flag ok">✓ Оплачено</span>'
-                     : `<span class="flag bad">💰 Не оплачено${(stuShowPrice() && l.price) ? ' · '+l.price+'₽' : ''}</span>`}
-            ${!hasHw ? '' : l.checked ? '<span class="flag ok">✓ ДЗ проверено</span>'
-                     : done ? '<span class="flag wait">⏳ Сдано, ждёт проверки</span>'
-                            : '<span class="flag bad">✗ ДЗ не сдано</span>'}
-            ${lessonXp(l) > 0 ? `<span class="flag ok">+${lessonXp(l)} очков</span>` : ''}
+            ${l.paid ? `<span class="flag ok">✓ ${t('paid')}</span>`
+                     : `<span class="flag bad">💰 ${t('unpaid')}${(stuShowPrice() && l.price) ? ' · '+l.price+'₽' : ''}</span>`}
+            ${!hasHw ? '' : l.checked ? `<span class="flag ok">✓ ${t('hwCheckedFlag')}</span>`
+                     : done ? `<span class="flag wait">⏳ ${t('hwSubmittedWaitFlag')}</span>`
+                            : `<span class="flag bad">✗ ${t('hwNotSubmittedFlag')}</span>`}
+            ${lessonXp(l) > 0 ? `<span class="flag ok">+${lessonXp(l)} ${t('pointsWord')}</span>` : ''}
           </div>
         </div>
-        ${l.topic ? `<div class="lesson-topic"><span class="label">Тема: </span>${escapeHtml(l.topic)}</div>` : ''}
-        ${l.meetingUrl ? `<div class="lesson-topic"><a class="meet-link" href="${escapeHtml(l.meetingUrl)}" target="_blank" rel="noopener">🎥 Подключиться к занятию</a></div>` : ''}
-        ${l.gradeComment ? `<div class="lesson-topic"><span class="label">Комментарий: </span>${escapeHtml(l.gradeComment)}</div>` : ''}
+        ${l.topic ? `<div class="lesson-topic"><span class="label">${t('topicLabel')} </span>${escapeHtml(l.topic)}</div>` : ''}
+        ${l.meetingUrl ? `<div class="lesson-topic"><a class="meet-link" href="${escapeHtml(l.meetingUrl)}" target="_blank" rel="noopener">🎥 ${t('joinLessonLink')}</a></div>` : ''}
+        ${l.gradeComment ? `<div class="lesson-topic"><span class="label">${t('commentLabel')} </span>${escapeHtml(l.gradeComment)}</div>` : ''}
         ${hasHw ? `
           <div class="lesson-hw">
-            <div class="hw-text"><span class="label">Задано</span>${escapeHtml(l.homework||'')}</div>
+            <div class="hw-text"><span class="label">${t('assignedLabel')}</span>${escapeHtml(l.homework||'')}</div>
             ${renderAttachmentsView(l.homeworkAttachments)}
             <div class="hw-share-row">
               <button class="btn-primary btn-sm" onclick="openSubmitModal('${l.id}')">
-                ${done ? 'Изменить работу' : 'Сдать работу'}
+                ${done ? t('editWorkBtn') : t('submitWorkBtn')}
               </button>
             </div>
           </div>` : ''}
         ${done ? `
           <div class="submission-box">
-            <div class="hw-text"><span class="label">Моя работа</span>${escapeHtml(l.submission.text||'')}</div>
+            <div class="hw-text"><span class="label">${t('myWorkLabel')}</span>${escapeHtml(l.submission.text||'')}</div>
             ${renderAttachmentsView(l.submission.attachments)}
           </div>` : ''}
       </div>`;
@@ -4192,7 +4596,7 @@ function renderSubjects(){
   const add = document.createElement('div');
   add.className = 'add-card';
   add.onclick = ()=>openSubjectModal();
-  add.innerHTML = `<div class="plus">+</div><div>Добавить предмет</div>`;
+  add.innerHTML = `<div class="plus">+</div><div>${t('addSubjectBtn')}</div>`;
   grid.appendChild(add);
 }
 
@@ -4259,7 +4663,7 @@ function renderTopics(){
 function openSubjectModal(id){
   editingSubjectId = id || null;
   const sub = id ? getSubject(id) : null;
-  document.getElementById('subjectModalTitle').textContent = sub ? 'Изменить предмет' : 'Новый предмет';
+  document.getElementById('subjectModalTitle').textContent = sub ? t('editSubjectTitle') : t('newSubjectTitle');
   document.getElementById('subjectNameInput').value = sub ? sub.name : '';
   selectedSubjectColor = sub ? sub.color : COLORS[data.subjects.length % COLORS.length];
   renderSubjectSwatches();
@@ -4456,10 +4860,10 @@ function statsPeriodTitle(){
   if(statsPeriod === 'day') return formatDateLong(toDateStr(days[0].getFullYear(), days[0].getMonth(), days[0].getDate()));
   if(statsPeriod === 'week'){
     const a = days[0], b = days[6];
-    const fmt = d => d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'});
+    const fmt = d => d.toLocaleDateString(localeTag(), {day:'numeric', month:'short'});
     return `${fmt(a)} — ${fmt(b)}`;
   }
-  return statsCursor.toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
+  return statsCursor.toLocaleDateString(localeTag(), {month:'long', year:'numeric'});
 }
 
 /* Все занятия за конкретный день, отсортированные по времени. */
@@ -4593,24 +4997,24 @@ async function renderProductMetrics(){
 function renderStatsKpis(st){
   const hours = (st.totalMinutes/60);
   const hoursStr = Number.isInteger(hours) ? String(hours) : hours.toFixed(1).replace('.',',');
-  const money = n => n.toLocaleString('ru-RU') + ' ₽';
+  const money = n => n.toLocaleString(localeTag()) + ' ₽';
   document.getElementById('statsKpis').innerHTML = `
-    <div class="kpi"><div class="k-label">Занятий</div><div class="k-value">${st.lessonCount}</div>
-      <div class="k-sub">${st.unchecked>0 ? '⚠ '+st.unchecked+' с непровер. ДЗ' : 'всё проверено'}</div></div>
-    <div class="kpi"><div class="k-label">Часов</div><div class="k-value">${hoursStr}</div>
+    <div class="kpi"><div class="k-label">${t('kpiLessons')}</div><div class="k-value">${st.lessonCount}</div>
+      <div class="k-sub">${st.unchecked>0 ? '⚠ '+st.unchecked+t('withUncheckedHw') : t('allChecked')}</div></div>
+    <div class="kpi"><div class="k-label">${t('kpiHours')}</div><div class="k-value">${hoursStr}</div>
       <div class="k-sub">${formatDuration(st.totalMinutes)}</div></div>
-    <div class="kpi good"><div class="k-label">Заработано</div><div class="k-value">${money(st.earned)}</div>
-      <div class="k-sub">оплаченные занятия</div></div>
-    <div class="kpi warn"><div class="k-label">Ожидает оплаты</div><div class="k-value">${money(st.unpaid)}</div>
-      <div class="k-sub">${st.unpaid>0 ? 'не оплачено' : 'долгов нет'}</div></div>
-    <div class="kpi accent"><div class="k-label">Загруженность</div><div class="k-value">${st.loadPct}%</div>
+    <div class="kpi good"><div class="k-label">${t('kpiEarned')}</div><div class="k-value">${money(st.earned)}</div>
+      <div class="k-sub">${t('paidLessonsSub')}</div></div>
+    <div class="kpi warn"><div class="k-label">${t('kpiPending')}</div><div class="k-value">${money(st.unpaid)}</div>
+      <div class="k-sub">${st.unpaid>0 ? t('notPaid') : t('noDebts')}</div></div>
+    <div class="kpi accent"><div class="k-label">${t('kpiLoad')}</div><div class="k-value">${st.loadPct}%</div>
       <div class="load-bar"><span style="width:${st.loadPct}%"></span></div></div>
   `;
 }
 
 /* Столбчатая диаграмма занятости по дням — рисуем сами, без внешних библиотек. */
 function renderLoadChart(st){
-  const title = statsPeriod === 'day' ? 'Расписание дня' : 'Загруженность по дням';
+  const title = statsPeriod === 'day' ? t('daySchedule') : t('loadByDay');
   document.getElementById('statsChartTitle').textContent = title;
 
   const box = document.getElementById('statsLoadChart');
@@ -4618,7 +5022,7 @@ function renderLoadChart(st){
   if(statsPeriod === 'day'){
     const d = st.dayStats[0];
     if(!d.lessons.length){
-      box.innerHTML = `<div class="empty-state-sm">${d.isWorkDay ? 'Занятий нет — день полностью свободен.' : 'Выходной день.'}</div>`;
+      box.innerHTML = `<div class="empty-state-sm">${d.isWorkDay ? t('noLessonsFreeDay') : t('dayOffTxt')}</div>`;
       return;
     }
     box.innerHTML = d.lessons.map(l=>{
@@ -4648,7 +5052,7 @@ function renderLoadChart(st){
     const h = maxMin ? (d.minutes / maxMin) * (H - padT - padB) : 0;
     const y = H - padB - h;
     const label = statsPeriod === 'week'
-      ? ['пн','вт','ср','чт','пт','сб','вс'][i]
+      ? [t('wkMon'),t('wkTue'),t('wkWed'),t('wkThu'),t('wkFri'),t('wkSat'),t('wkSun')][i].toLowerCase()
       : String(d.date.getDate());
     const isToday = d.dateStr === todayStr();
     const fill = d.minutes === 0 ? 'var(--surface2)' : (d.isWorkDay ? 'var(--accent)' : 'var(--warn)');
@@ -4668,13 +5072,13 @@ function renderLoadChart(st){
       <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMinYMid meet">
         <line x1="0" y1="${H-padB}" x2="${W}" y2="${H-padB}" stroke="var(--border)"/>
         <line x1="0" y1="${capLineY}" x2="${W}" y2="${capLineY}" stroke="var(--border)" stroke-dasharray="3 4"/>
-        <text x="4" y="${capLineY-4}" font-size="9" fill="var(--muted)">полный день (${formatDuration(workWindow)})</text>
+        <text x="4" y="${capLineY-4}" font-size="9" fill="var(--muted)">${t('fullDayCap')} (${formatDuration(workWindow)})</text>
         ${bars}
       </svg>
     </div>
     <div class="legend">
-      <span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>рабочий день</span>
-      <span class="legend-item"><span class="legend-dot" style="background:var(--warn)"></span>занятие в выходной</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>${t('legendWorkDay')}</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--warn)"></span>${t('legendWeekendLesson')}</span>
     </div>
   `;
 }
@@ -4683,7 +5087,7 @@ function renderFreeSlots(st){
   const box = document.getElementById('statsFreeSlots');
   const days = st.dayStats.filter(d=>d.isWorkDay);
   if(!days.length){
-    box.innerHTML = '<div class="empty-state-sm">В этот период нет рабочих дней. Настроить можно в ⚙ Настройках.</div>';
+    box.innerHTML = `<div class="empty-state-sm">${t('noWorkDaysPeriod')}</div>`;
     return;
   }
   // на месяц показываем только ближайшие дни, иначе список огромный
@@ -4691,15 +5095,15 @@ function renderFreeSlots(st){
     ? days.filter(d=> d.dateStr >= todayStr()).slice(0,10)
     : days;
   if(!shown.length){
-    box.innerHTML = '<div class="empty-state-sm">Все дни месяца уже прошли.</div>';
+    box.innerHTML = `<div class="empty-state-sm">${t('allMonthDaysPast')}</div>`;
     return;
   }
   box.innerHTML = shown.map(d=>{
     const slots = freeSlotsForDate(d.dateStr, d.isWorkDay);
-    const name = d.date.toLocaleDateString('ru-RU', {weekday:'short', day:'numeric', month:'short'});
+    const name = d.date.toLocaleDateString(localeTag(), {weekday:'short', day:'numeric', month:'short'});
     const chips = slots.length
       ? slots.map(s=>`<span class="slot-chip">${minutesToHHMM(s.start)}–${minutesToHHMM(s.end)}</span>`).join('')
-      : '<span class="slot-chip busy">день занят полностью</span>';
+      : `<span class="slot-chip busy">${t('fullyBusyDay')}</span>`;
     return `<div class="slot-day"><div class="slot-day-name">${name}</div><div class="slot-chips">${chips}</div></div>`;
   }).join('');
 }
@@ -4707,7 +5111,7 @@ function renderFreeSlots(st){
 function renderByStudent(st){
   const box = document.getElementById('statsByStudent');
   if(!st.byStudent.length){
-    box.innerHTML = '<div class="empty-state-sm">В этот период занятий не было.</div>';
+    box.innerHTML = `<div class="empty-state-sm">${t('noLessonsInPeriod')}</div>`;
     return;
   }
   const max = Math.max(...st.byStudent.map(s=>s.minutes));
@@ -4715,7 +5119,7 @@ function renderByStudent(st){
     <div style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:5px;">
         <span>${escapeHtml(s.name)}</span>
-        <span class="muted-note">${s.count} зан. · ${formatDuration(s.minutes)}${s.earned ? ' · '+s.earned.toLocaleString('ru-RU')+'₽' : ''}</span>
+        <span class="muted-note">${s.count} ${t('lessonsAbbrev')} · ${formatDuration(s.minutes)}${s.earned ? ' · '+s.earned.toLocaleString(localeTag())+'₽' : ''}</span>
       </div>
       <div class="load-bar"><span style="width:${Math.round(s.minutes/max*100)}%;background:${s.color};"></span></div>
     </div>
@@ -4729,7 +5133,7 @@ function renderEarningsChart(){
   const base = new Date(statsCursor.getFullYear(), statsCursor.getMonth(), 1);
   for(let i=5; i>=0; i--){
     const d = new Date(base.getFullYear(), base.getMonth()-i, 1);
-    months.push({ y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('ru-RU',{month:'short'}), paid:0, unpaid:0 });
+    months.push({ y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString(localeTag(),{month:'short'}), paid:0, unpaid:0 });
   }
   data.students.forEach(s=>(s.lessons||[]).forEach(l=>{
     if(!l.date) return;
@@ -4742,7 +5146,7 @@ function renderEarningsChart(){
 
   const max = Math.max(1, ...months.map(x=>x.paid + x.unpaid));
   if(max === 1 && months.every(x=>x.paid+x.unpaid===0)){
-    box.innerHTML = '<div class="empty-state-sm">Пока нет данных о стоимости занятий. Указывайте цену — и здесь появится график.</div>';
+    box.innerHTML = `<div class="empty-state-sm">${t('noPriceDataYet')}</div>`;
     return;
   }
 
@@ -4758,8 +5162,8 @@ function renderEarningsChart(){
     const yPaid = H - padB - paidH;
     const sum = x.paid + x.unpaid;
     return `
-      ${x.unpaid>0 ? `<rect x="${cx-bw/2}" y="${yTotal}" width="${bw}" height="${Math.max(1,totalH-paidH)}" rx="3" fill="var(--warn)" opacity=".55"><title>${x.label}: не оплачено ${x.unpaid.toLocaleString('ru-RU')}₽</title></rect>` : ''}
-      ${x.paid>0 ? `<rect x="${cx-bw/2}" y="${yPaid}" width="${bw}" height="${Math.max(1,paidH)}" rx="3" fill="var(--success)"><title>${x.label}: получено ${x.paid.toLocaleString('ru-RU')}₽</title></rect>` : ''}
+      ${x.unpaid>0 ? `<rect x="${cx-bw/2}" y="${yTotal}" width="${bw}" height="${Math.max(1,totalH-paidH)}" rx="3" fill="var(--warn)" opacity=".55"><title>${x.label}: ${t('notPaid')} ${x.unpaid.toLocaleString(localeTag())}₽</title></rect>` : ''}
+      ${x.paid>0 ? `<rect x="${cx-bw/2}" y="${yPaid}" width="${bw}" height="${Math.max(1,paidH)}" rx="3" fill="var(--success)"><title>${x.label}: ${t('legendReceived')} ${x.paid.toLocaleString(localeTag())}₽</title></rect>` : ''}
       ${sum>0 ? `<text x="${cx}" y="${yTotal-5}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${Math.round(sum/1000)>0 ? Math.round(sum/1000)+'к' : sum}</text>` : ''}
       <text x="${cx}" y="${H-padB+16}" text-anchor="middle" font-size="10" fill="var(--muted)">${x.label}</text>
     `;
@@ -4773,8 +5177,8 @@ function renderEarningsChart(){
       </svg>
     </div>
     <div class="legend">
-      <span class="legend-item"><span class="legend-dot" style="background:var(--success)"></span>получено</span>
-      <span class="legend-item"><span class="legend-dot" style="background:var(--warn);opacity:.55"></span>ожидает оплаты</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--success)"></span>${t('legendReceived')}</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--warn);opacity:.55"></span>${t('legendAwaiting')}</span>
     </div>
   `;
 }
@@ -4782,7 +5186,7 @@ function renderEarningsChart(){
 /* ---------- CALENDAR ---------- */
 function renderCalendar(){
   const y = calCursor.getFullYear(), m = calCursor.getMonth();
-  const label = calCursor.toLocaleDateString('ru-RU', { month:'long', year:'numeric' });
+  const label = calCursor.toLocaleDateString(localeTag(), { month:'long', year:'numeric' });
   document.getElementById('calMonthLabel').textContent = label.charAt(0).toUpperCase() + label.slice(1);
 
   const firstDay = new Date(y,m,1);
@@ -4858,7 +5262,7 @@ function openDayModal(dateStr){
   document.getElementById('dayModalTitle').textContent = formatDateLong(dateStr);
   const body = document.getElementById('dayModalBody');
   if(lessons.length === 0){
-    body.innerHTML = '<div class="empty-state-sm">Занятий нет.</div>';
+    body.innerHTML = `<div class="empty-state-sm">${t('noLessons')}</div>`;
   } else {
     body.innerHTML = lessons.map(l=>{
       const hasHw = l.homework && l.homework.trim();
@@ -4881,7 +5285,7 @@ function openDayModal(dateStr){
 
   const select = document.getElementById('dayAddStudentSelect');
   if(data.students.length === 0){
-    select.innerHTML = '<option value="">Сначала добавьте ученика</option>';
+    select.innerHTML = `<option value="">${t('pickStudentFirst')}</option>`;
   } else {
     select.innerHTML = data.students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
   }
@@ -4910,7 +5314,7 @@ function goToStudentFromDay(studentId){
 }
 function addLessonFromDay(){
   const sid = document.getElementById('dayAddStudentSelect').value;
-  if(!sid){ alert('Сначала добавьте ученика'); return; }
+  if(!sid){ alert(t('pickStudentFirst')); return; }
   currentStudentId = sid;
   modalReturnContext = 'day';
   closeModal('dayModalOverlay');
