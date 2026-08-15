@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дневник преподавателя — расписание, ДЗ и оплата в Telegram</title>
+<meta name="description" content="Telegram-приложение для репетиторов: ученики, расписание, домашние задания, оплата и напоминания — всё в одном месте.">
+<style>
+  :root{
+    --bg:#0f1117; --bg2:#12141c; --surface:#171a23; --surface2:#1e222d; --border:#2a2e3a;
+    --text:#e8e9ec; --muted:#9aa0ab; --accent:#6c8cff; --accent-dim:#3d4a80;
+    --success:#3ecf8e; --success-dim:#1f4a38; --warn:#f2b84b; --warn-dim:#4a3308;
+    --pill-bg: rgba(120,120,130,.16); --pill-border: rgba(120,120,130,.22);
+    color-scheme: dark;
+  }
+  html[data-theme="light"]{
+    --bg:#f8f7f4; --bg2:#f1efe8; --surface:#ffffff; --surface2:#f1efe8; --border:#e3e0d6;
+    --text:#1c1d22; --muted:#6f6e68; --accent:#5a52c9; --accent-dim:#e6e2fb;
+    --success:#0e8a58; --success-dim:#dbf3e7; --warn:#a8730a; --warn-dim:#fbeed4;
+    --pill-bg: rgba(255,255,255,.55); --pill-border: rgba(0,0,0,.08);
+    color-scheme: light;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    line-height:1.5; transition:background .2s,color .2s;
+  }
+  a{color:var(--accent);}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px;}
+
+  header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--border);}
+  .header-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;}
+  .brand-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+  .header-actions{display:flex;align-items:center;gap:12px;}
+
+  .switcher{display:flex;align-items:center;gap:2px;background:var(--pill-bg);border:1px solid var(--pill-border);
+    border-radius:20px;padding:4px;backdrop-filter:blur(6px);}
+  .sw-btn{width:28px;height:28px;border-radius:50%;border:none;background:transparent;color:var(--text);
+    font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.85;}
+  .sw-div{width:1px;height:15px;background:var(--pill-border);margin:0 2px;}
+  .sw-lang{display:flex;}
+  .sw-lang button{border:none;background:transparent;color:var(--muted);font-size:10.5px;font-weight:700;
+    padding:6px 8px;border-radius:14px;cursor:pointer;letter-spacing:.02em;}
+  .sw-lang button.on{background:var(--accent);color:#0b0d13;}
+
+  .btn{display:inline-flex;align-items:center;gap:7px;border-radius:10px;padding:10px 18px;
+    font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;border:none;white-space:nowrap;}
+  .btn-primary{background:var(--accent);color:#0b0d13;}
+  .btn-primary:hover{opacity:.9;}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);}
+
+  section{padding:72px 0;}
+  section.tint{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+  .hero{padding-top:64px;padding-bottom:64px;text-align:center;}
+  .hero h1{font-size:clamp(28px,5vw,44px);font-weight:800;margin:0 0 18px;letter-spacing:-.01em;}
+  .hero h1 span{color:var(--accent);}
+  .hero p{font-size:17px;color:var(--muted);max-width:580px;margin:0 auto 32px;}
+  .hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:44px;}
+  .hero-note{font-size:12.5px;color:var(--muted);margin-top:14px;}
+
+  .mock{max-width:600px;margin:0 auto;border-radius:20px;background:var(--surface);
+    border:1px solid var(--border);box-shadow:0 20px 60px -20px rgba(0,0,0,.4);overflow:hidden;text-align:left;}
+  .mock-top{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+  .mock-top strong{font-size:13px;}
+  .mock-tabs{display:flex;gap:4px;background:var(--surface2);border-radius:8px;padding:3px;width:fit-content;}
+  .mock-tabs span{padding:5px 10px;border-radius:6px;font-size:11px;color:var(--muted);}
+  .mock-tabs span.on{background:var(--accent);color:#0b0d13;font-weight:600;}
+  .mock-body{padding:16px 18px 20px;}
+  .mock-card{background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin-bottom:8px;}
+  .mock-row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;}
+  .mock-pill{font-size:10px;font-weight:600;padding:3px 8px;border-radius:12px;}
+  .mock-pill.ok{background:var(--success-dim);color:var(--success);}
+  .mock-pill.warn{background:var(--warn-dim);color:var(--warn);}
+  .mock-topic{font-size:11.5px;color:var(--muted);margin-top:6px;}
+
+  .section-head{text-align:center;max-width:560px;margin:0 auto 44px;}
+  .section-head h2{font-size:26px;margin:0 0 10px;}
+  .section-head p{color:var(--muted);font-size:15px;margin:0;}
+  .eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;}
+  .card .ic{font-size:22px;margin-bottom:12px;}
+  .card h3{font-size:15px;margin:0 0 6px;}
+  .card p{font-size:13.5px;color:var(--muted);margin:0;line-height:1.5;}
+
+  .steps{counter-reset:step;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;}
+  .step{position:relative;padding-top:6px;}
+  .step-num{width:30px;height:30px;border-radius:50%;background:var(--accent-dim);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;margin-bottom:12px;}
+  .step h3{font-size:14.5px;margin:0 0 6px;}
+  .step p{font-size:13px;color:var(--muted);margin:0;line-height:1.5;}
+
+  .faq-item{border-bottom:1px solid var(--border);}
+  .faq-q{width:100%;text-align:left;background:none;border:none;color:var(--text);cursor:pointer;
+    padding:18px 0;font-size:15px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .faq-q .arrow{color:var(--muted);transition:transform .15s;flex-shrink:0;font-size:13px;}
+  .faq-item.open .faq-q .arrow{transform:rotate(180deg);}
+  .faq-a{max-height:0;overflow:hidden;transition:max-height .2s ease;}
+  .faq-item.open .faq-a{max-height:400px;}
+  .faq-a p{margin:0 0 16px;font-size:14px;color:var(--muted);line-height:1.6;}
+
+  .cta-band{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:44px 32px;text-align:center;}
+  .cta-band h2{font-size:24px;margin:0 0 10px;}
+  .cta-band p{color:var(--muted);margin:0 0 24px;}
+
+  footer{border-top:1px solid var(--border);padding:28px 0;text-align:center;font-size:12.5px;color:var(--muted);}
+  footer a{color:var(--muted);}
+
+  @media (max-width:640px){ section{padding:52px 0;} .hero{padding-top:40px;padding-bottom:40px;} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap header-row">
+    <div class="brand"><span class="brand-dot"></span><span data-t="brand">Дневник преподавателя</span></div>
+    <div class="header-actions">
+      <div class="switcher">
+        <button class="sw-btn" id="themeBtn" onclick="toggleTheme()">🌙</button>
+        <div class="sw-div"></div>
+        <div class="sw-lang">
+          <button class="on" data-lang="ru" onclick="setLang('ru')">RU</button>
+          <button data-lang="en" onclick="setLang('en')">EN</button>
+        </div>
+      </div>
+      <a class="btn btn-primary" href="https://t.me/tutor_diary_bot" target="_blank" rel="noopener" data-t="openBot">Открыть в Telegram</a>
+    </div>
+  </div>
+</header>
+
+<section class="hero wrap">
+  <h1 data-t="heroTitle">Ученики, оплата и домашка —<br>без <span data-t="heroTitleSpan">десятка чатов</span></h1>
+  <p data-t="heroSub">Устали держать в голове, кто заплатил за занятие, а кто нет, и кому сегодня писать
+     напоминание про домашку? Здесь это видно сразу — расписание, задания и оплата в одном месте.</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="https://t.me/tutor_diary_bot" target="_blank" rel="noopener" data-t="ctaOpen">🚀 Открыть бота</a>
+    <a class="btn btn-ghost" href="#faq" data-t="ctaFaq">Частые вопросы</a>
+  </div>
+
+  <div class="mock">
+    <div class="mock-top">
+      <strong data-t="mockTitle">Ученики</strong>
+      <div class="mock-tabs"><span class="on" data-t="mockTab1">Ученики</span><span data-t="mockTab2">Календарь</span><span data-t="mockTab3">Аналитика</span></div>
+    </div>
+    <div class="mock-body">
+      <div class="mock-card">
+        <div class="mock-row"><span data-t="mockStu1">Артём Волков · Математика</span><span class="mock-pill ok" data-t="mockPaid">Оплачено</span></div>
+        <div class="mock-topic" data-t="mockTopic1">Ср, 16:00 · Производная и касательная</div>
+      </div>
+      <div class="mock-card">
+        <div class="mock-row"><span data-t="mockStu2">Лена Смирнова · Английский</span><span class="mock-pill warn" data-t="mockUnpaid">Не оплачено</span></div>
+        <div class="mock-topic" data-t="mockTopic2">Сб, 16:00 · Present Perfect</div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-note" data-t="heroNote">Бесплатно и без установки — открывается прямо в Telegram.</div>
+</section>
+
+<section class="wrap tint" id="features">
+  <div class="section-head">
+    <div class="eyebrow" data-t="featEyebrow">Что внутри</div>
+    <h2 data-t="featTitle">Всё, что нужно для ведения учеников</h2>
+    <p data-t="featSub">Не отдельный кабинет, который надо не забыть открыть, — а бот, который у вас и так уже есть в Telegram.</p>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="ic">👥</div><h3 data-t="f1h">Ученики и расписание</h3>
+      <p data-t="f1p">Карточка на каждого ученика: предмет, цвет, цена занятия. Календарь с повторяющимися занятиями на нужное число недель.</p></div>
+    <div class="card"><div class="ic">📝</div><h3 data-t="f2h">Домашние задания</h3>
+      <p data-t="f2p">Задаёте текстом, файлом или ссылкой. Ученик сдаёт прямо в приложении — фото, файлы, комментарий. Вы отмечаете проверенным.</p></div>
+    <div class="card"><div class="ic">💰</div><h3 data-t="f3h">Оплата и аналитика</h3>
+      <p data-t="f3p">Статус «оплачено / не оплачено» на каждом занятии, заработок по месяцам, загруженность по дням. Можно скрыть сумму от ученика.</p></div>
+    <div class="card"><div class="ic">🔔</div><h3 data-t="f4h">Напоминания</h3>
+      <p data-t="f4p">Бот сам напишет: занятие скоро, ДЗ не проверено или не сдано, оплата просрочена — и вам, и ученику.</p></div>
+    <div class="card"><div class="ic">🏆</div><h3 data-t="f5h">Прогресс ученика</h3>
+      <p data-t="f5p">Уровни, очки, серия занятий подряд, достижения — небольшая геймификация, чтобы домашку сдавали охотнее.</p></div>
+    <div class="card"><div class="ic">📚</div><h3 data-t="f6h">База знаний</h3>
+      <p data-t="f6p">Предметы и темы с материалами и задачами — свои заготовки под рукой, чтобы не искать одно и то же каждый раз.</p></div>
+    <div class="card"><div class="ic">🎥</div><h3 data-t="f7h">Видеосвязь</h3>
+      <p data-t="f7p">Ссылка на Zoom, Google Meet или Телемост — руками или автоматически, если подключить свой Zoom-аккаунт.</p></div>
+    <div class="card"><div class="ic">🌗</div><h3 data-t="f8h">Тема и язык</h3>
+      <p data-t="f8p">Светлая и тёмная тема, русский и английский интерфейс — переключаются одной кнопкой, отдельно для каждого устройства.</p></div>
+  </div>
+</section>
+
+<section class="wrap" id="how">
+  <div class="section-head">
+    <div class="eyebrow" data-t="howEyebrow">Как начать</div>
+    <h2 data-t="howTitle">Четыре шага — и вы уже ведёте расписание</h2>
+  </div>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><h3 data-t="s1h">Откройте бота</h3>
+      <p data-t="s1p">Вход происходит сам — через Telegram, без пароля.</p></div>
+    <div class="step"><div class="step-num">2</div><h3 data-t="s2h">Добавьте ученика</h3>
+      <p data-t="s2p">Имя, предмет, цвет карточки — 20 секунд.</p></div>
+    <div class="step"><div class="step-num">3</div><h3 data-t="s3h">Запланируйте занятие</h3>
+      <p data-t="s3p">Дата, время, тема, домашнее задание — как удобно.</p></div>
+    <div class="step"><div class="step-num">4</div><h3 data-t="s4h">Выдайте доступ ученику</h3>
+      <p data-t="s4p">Кнопка «Пригласить» — ссылка, логин и пароль одним нажатием.</p></div>
+  </div>
+</section>
+
+<section class="wrap tint" id="faq">
+  <div class="section-head">
+    <div class="eyebrow" data-t="faqEyebrow">FAQ</div>
+    <h2 data-t="faqTitle">Частые вопросы</h2>
+    <p data-t="faqSub">Если ответа здесь нет — просто спросите в диалоге с ботом.</p>
+  </div>
+  <div id="faqList"></div>
+</section>
+
+<section class="wrap">
+  <div class="cta-band">
+    <h2 data-t="ctaTitle">Готовы попробовать?</h2>
+    <p data-t="ctaSub">Первый ученик и первое занятие — на это уйдёт меньше минуты.</p>
+    <a class="btn btn-primary" href="https://t.me/tutor_diary_bot" target="_blank" rel="noopener" data-t="ctaBtn">🚀 Открыть @tutor_diary_bot</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span data-t="brand">Дневник преподавателя</span> · <a href="https://t.me/tutor_diary_bot" target="_blank" rel="noopener">@tutor_diary_bot</a>
+  </div>
+</footer>
+
+<script>
+const THEME_KEY = 'tutor_diary_landing_theme';
+const LANG_KEY = 'tutor_diary_landing_lang';
+
+function applyTheme(mode){
+  document.documentElement.setAttribute('data-theme', mode);
+  document.getElementById('themeBtn').textContent = mode === 'light' ? '🌙' : '☀️';
+}
+function toggleTheme(){
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+  applyTheme(next);
+}
+
+const DICT = {
+  brand: {ru:'Дневник преподавателя', en:'Tutor Diary'},
+  openBot: {ru:'Открыть в Telegram', en:'Open in Telegram'},
+  heroTitle: {ru:'Ученики, оплата и домашка —<br>без ', en:'Students, payments, homework —<br>without '},
+  heroTitleSpan: {ru:'десятка чатов', en:'a dozen chats'},
+  heroSub: {ru:'Устали держать в голове, кто заплатил за занятие, а кто нет, и кому сегодня писать напоминание про домашку? Здесь это видно сразу — расписание, задания и оплата в одном месте.',
+            en:'Tired of remembering who paid for a lesson and who didn’t, or who needs a nudge about homework today? Here it’s all visible at a glance — schedule, assignments, and payments in one place.'},
+  ctaOpen: {ru:'🚀 Открыть бота', en:'🚀 Open the bot'},
+  ctaFaq: {ru:'Частые вопросы', en:'FAQ'},
+  mockTitle: {ru:'Ученики', en:'Students'},
+  mockTab1: {ru:'Ученики', en:'Students'}, mockTab2: {ru:'Календарь', en:'Calendar'}, mockTab3: {ru:'Аналитика', en:'Analytics'},
+  mockStu1: {ru:'Артём Волков · Математика', en:'Artem Volkov · Math'},
+  mockPaid: {ru:'Оплачено', en:'Paid'},
+  mockTopic1: {ru:'Ср, 16:00 · Производная и касательная', en:'Wed, 4pm · Derivatives & tangent lines'},
+  mockStu2: {ru:'Лена Смирнова · Английский', en:'Lena Smirnova · English'},
+  mockUnpaid: {ru:'Не оплачено', en:'Unpaid'},
+  mockTopic2: {ru:'Сб, 16:00 · Present Perfect', en:'Sat, 4pm · Present Perfect'},
+  heroNote: {ru:'Бесплатно и без установки — открывается прямо в Telegram.', en:'Free, nothing to install — opens right inside Telegram.'},
+  featEyebrow: {ru:'Что внутри', en:'What’s inside'},
+  featTitle: {ru:'Всё, что нужно для ведения учеников', en:'Everything you need to run your students'},
+  featSub: {ru:'Не отдельный кабинет, который надо не забыть открыть, — а бот, который у вас и так уже есть в Telegram.',
+            en:'Not a separate dashboard you have to remember to open — a bot you already have in Telegram.'},
+  f1h: {ru:'Ученики и расписание', en:'Students & schedule'},
+  f1p: {ru:'Карточка на каждого ученика: предмет, цвет, цена занятия. Календарь с повторяющимися занятиями на нужное число недель.',
+        en:'A card for every student: subject, color, lesson price. Calendar with recurring lessons for however many weeks you need.'},
+  f2h: {ru:'Домашние задания', en:'Homework'},
+  f2p: {ru:'Задаёте текстом, файлом или ссылкой. Ученик сдаёт прямо в приложении — фото, файлы, комментарий. Вы отмечаете проверенным.',
+        en:'Assign as text, a file, or a link. Students submit right in the app — photos, files, a comment. You mark it checked.'},
+  f3h: {ru:'Оплата и аналитика', en:'Payments & analytics'},
+  f3p: {ru:'Статус «оплачено / не оплачено» на каждом занятии, заработок по месяцам, загруженность по дням. Можно скрыть сумму от ученика.',
+        en:'"Paid / unpaid" status on every lesson, monthly earnings, daily workload. You can hide the amount from the student.'},
+  f4h: {ru:'Напоминания', en:'Reminders'},
+  f4p: {ru:'Бот сам напишет: занятие скоро, ДЗ не проверено или не сдано, оплата просрочена — и вам, и ученику.',
+        en:'The bot messages both of you: lesson coming up, homework not checked or not submitted, payment overdue.'},
+  f5h: {ru:'Прогресс ученика', en:'Student progress'},
+  f5p: {ru:'Уровни, очки, серия занятий подряд, достижения — небольшая геймификация, чтобы домашку сдавали охотнее.',
+        en:'Levels, points, streaks, achievements — a bit of gamification so homework gets submitted more willingly.'},
+  f6h: {ru:'База знаний', en:'Knowledge base'},
+  f6p: {ru:'Предметы и темы с материалами и задачами — свои заготовки под рукой, чтобы не искать одно и то же каждый раз.',
+        en:'Subjects and topics with materials and tasks — your own templates on hand, so you’re not hunting for the same thing twice.'},
+  f7h: {ru:'Видеосвязь', en:'Video calls'},
+  f7p: {ru:'Ссылка на Zoom, Google Meet или Телемост — руками или автоматически, если подключить свой Zoom-аккаунт.',
+        en:'A Zoom, Google Meet, or Telemost link — added manually, or automatically if you connect your own Zoom account.'},
+  f8h: {ru:'Тема и язык', en:'Theme & language'},
+  f8p: {ru:'Светлая и тёмная тема, русский и английский интерфейс — переключаются одной кнопкой, отдельно для каждого устройства.',
+        en:'Light and dark theme, Russian and English interface — one button each, set per device.'},
+  howEyebrow: {ru:'Как начать', en:'Getting started'},
+  howTitle: {ru:'Четыре шага — и вы уже ведёте расписание', en:'Four steps and you’re already running your schedule'},
+  s1h: {ru:'Откройте бота', en:'Open the bot'},
+  s1p: {ru:'Вход происходит сам — через Telegram, без пароля.', en:'Sign-in happens automatically — via Telegram, no password.'},
+  s2h: {ru:'Добавьте ученика', en:'Add a student'},
+  s2p: {ru:'Имя, предмет, цвет карточки — 20 секунд.', en:'Name, subject, card color — 20 seconds.'},
+  s3h: {ru:'Запланируйте занятие', en:'Schedule a lesson'},
+  s3p: {ru:'Дата, время, тема, домашнее задание — как удобно.', en:'Date, time, topic, homework — however suits you.'},
+  s4h: {ru:'Выдайте доступ ученику', en:'Grant the student access'},
+  s4p: {ru:'Кнопка «Пригласить» — ссылка, логин и пароль одним нажатием.', en:'The "Invite" button — a link, login, and password in one click.'},
+  faqEyebrow: {ru:'FAQ', en:'FAQ'},
+  faqTitle: {ru:'Частые вопросы', en:'Frequently asked questions'},
+  faqSub: {ru:'Если ответа здесь нет — просто спросите в диалоге с ботом.', en:'If your question isn’t here, just ask in the chat with the bot.'},
+  ctaTitle: {ru:'Готовы попробовать?', en:'Ready to try it?'},
+  ctaSub: {ru:'Первый ученик и первое занятие — на это уйдёт меньше минуты.', en:'Your first student and first lesson — takes less than a minute.'},
+  ctaBtn: {ru:'🚀 Открыть @tutor_diary_bot', en:'🚀 Open @tutor_diary_bot'}
+};
+
+const FAQ = [
+  { q:{ru:'Это бесплатно?', en:'Is it free?'},
+    a:{ru:'Да, приложение полностью бесплатное — можно вести хоть одного ученика, хоть несколько десятков, доплачивать не придётся.',
+       en:'Yes, it’s completely free — whether you have one student or several dozen, there’s nothing extra to pay.'} },
+  { q:{ru:'Нужно ли ученику что-то устанавливать?', en:'Does the student need to install anything?'},
+    a:{ru:'Нет. Вы отправляете ему ссылку — открыв её, он сразу попадает в свой кабинет: видит расписание, домашние задания и статус оплаты, может сдавать выполненные работы.',
+       en:'No. You send a link — opening it takes them straight into their own cabinet: schedule, homework, payment status, and a way to submit completed work.'} },
+  { q:{ru:'Что видит ученик — точно только своё?', en:'Does the student really see only their own data?'},
+    a:{ru:'Да, это ограничено на уровне базы данных, а не только интерфейса: он не увидит других ваших учеников, их цены, вашу базу знаний или аналитику.',
+       en:'Yes — enforced at the database level, not just in the interface: they can’t see your other students, their prices, your knowledge base, or your analytics.'} },
+  { q:{ru:'Можно скрыть от ученика стоимость занятий?', en:'Can I hide lesson prices from the student?'},
+    a:{ru:'Да, отдельным переключателем в карточке ученика. Тогда он видит только «оплачено / не оплачено», без суммы — сумма при этом остаётся в вашей аналитике.',
+       en:'Yes, with a toggle on the student’s card. They’ll only see "paid / unpaid" without the amount — the amount still shows in your own analytics.'} },
+  { q:{ru:'Работает ли без Telegram, просто в браузере?', en:'Does it work outside Telegram, in a browser?'},
+    a:{ru:'Да, вход возможен по логину и паролю. Единственное отличие — автоматические напоминания придут, только если хотя бы раз открыть бота.',
+       en:'Yes, sign-in works with a login and password. The only difference — automatic reminders only arrive if the bot has been opened at least once.'} },
+  { q:{ru:'Что если я забуду проверить домашку или отметить оплату?', en:'What if I forget to check homework or mark a payment?'},
+    a:{ru:'Бот сам напомнит — и вам, и ученику: занятие скоро, домашка не проверена или не сдана, оплата просрочена. Плюс всё видно в аналитике одним взглядом.',
+       en:'The bot reminds both of you: lesson coming up, homework not checked or not submitted, payment overdue. Plus it’s all visible in analytics at a glance.'} },
+  { q:{ru:'Можно вести занятия по видеосвязи?', en:'Can I run lessons over video call?'},
+    a:{ru:'Да — ссылку на Zoom, Google Meet или Телемост можно вставить вручную, либо подключить свой аккаунт Zoom, и ссылка будет создаваться автоматически.',
+       en:'Yes — add a Zoom, Google Meet, or Telemost link manually, or connect your own Zoom account and links get created automatically.'} },
+  { q:{ru:'Есть английский язык?', en:'Is there an English interface?'},
+    a:{ru:'Да, RU/EN переключается одной кнопкой рядом с темой оформления — отдельно у преподавателя и у ученика.',
+       en:'Yes, RU/EN toggles with one button next to the theme switcher — independently for the teacher and the student.'} },
+  { q:{ru:'А если у меня уже было расписание в старой версии приложения?', en:'What if I already had a schedule in an older version?'},
+    a:{ru:'При первом входе приложение само предложит перенести данные — ничего вводить заново не придётся.',
+       en:'On first sign-in the app offers to migrate your data automatically — nothing needs to be re-entered.'} }
+];
+
+let currentLang = 'ru';
+function t(key){ return (DICT[key] && DICT[key][currentLang]) || key; }
+function applyLang(){
+  document.querySelectorAll('[data-t]').forEach(el=>{
+    const entry = DICT[el.dataset.t];
+    if(entry) el.innerHTML = entry[currentLang];
+  });
+  document.querySelectorAll('.sw-lang button').forEach(b=>b.classList.toggle('on', b.dataset.lang===currentLang));
+  renderFaq();
+}
+function setLang(l){
+  currentLang = (l==='en') ? 'en' : 'ru';
+  try{ localStorage.setItem(LANG_KEY, currentLang); }catch(e){}
+  document.documentElement.lang = currentLang;
+  applyLang();
+}
+function renderFaq(){
+  const list = document.getElementById('faqList');
+  const openIdx = new Set([...list.querySelectorAll('.faq-item.open')].map(el=>el.dataset.i));
+  list.innerHTML = FAQ.map((f,i)=>`
+    <div class="faq-item${openIdx.has(String(i))?' open':''}" data-i="${i}">
+      <button class="faq-q" onclick="toggleFaq(${i})">
+        <span>${f.q[currentLang]}</span><span class="arrow">▾</span>
+      </button>
+      <div class="faq-a"><p>${f.a[currentLang]}</p></div>
+    </div>
+  `).join('');
+}
+function toggleFaq(i){
+  document.querySelector(`.faq-item[data-i="${i}"]`).classList.toggle('open');
+}
+
+(function(){
+  let storedTheme = 'dark', storedLang = 'ru';
+  try{ storedTheme = localStorage.getItem(THEME_KEY) || 'dark'; }catch(e){}
+  try{ storedLang = localStorage.getItem(LANG_KEY) || 'ru'; }catch(e){}
+  applyTheme(storedTheme);
+  currentLang = storedLang;
+  document.documentElement.lang = currentLang;
+  applyLang();
+})();
+</script>
+</body>
+</html>

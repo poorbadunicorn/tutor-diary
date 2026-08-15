@@ -581,6 +581,25 @@
   .seg:hover{color:var(--text);border-color:var(--accent-dim);filter:none;}
   .seg.on{background:var(--accent-fill);border-color:var(--accent-fill);color:#0b0d13;}
 
+  /* Рабочий график: своё время на каждый день недели */
+  .work-day-row{
+    display:flex;align-items:center;gap:10px;padding:7px 0;
+    border-bottom:1px solid var(--border);
+  }
+  .work-day-row:last-child{border-bottom:none;}
+  .work-day-toggle{
+    display:flex;align-items:center;gap:8px;width:64px;flex-shrink:0;
+    font-size:13px;font-weight:500;color:var(--text);cursor:pointer;
+  }
+  .work-day-row.off .work-day-toggle{color:var(--muted);}
+  .work-day-toggle input[type="checkbox"]{accent-color:var(--accent);width:16px;height:16px;cursor:pointer;flex-shrink:0;}
+  .work-day-time{
+    width:64px;flex-shrink:0;text-align:center;padding:6px 4px;font-size:13px;
+    background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);
+  }
+  .work-day-time:disabled{opacity:.4;}
+  .work-day-dash{color:var(--muted);flex-shrink:0;}
+
   /* Аналитика */
   .stats-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
   .stats-period-label{font-size:15px;font-weight:600;text-transform:capitalize;}
@@ -735,6 +754,7 @@
       <div class="sub" id="stuSub"></div>
     </div>
     <div class="top-actions">
+      <button class="btn-ghost btn-sm" onclick="showStuOnboardingAgain()" title="Как пользоваться" data-i18n="howToUse">❔ Как пользоваться приложением</button>
       <button class="btn-ghost" onclick="logout()" data-i18n="logout">Выйти</button>
     </div>
   </div>
@@ -1318,34 +1338,65 @@
   </div>
 </div>
 
+<!-- ОНБОРДИНГ ДЛЯ НОВЫХ УЧЕНИКОВ -->
+<div class="modal-overlay" id="stuOnboardingModalOverlay">
+  <div class="modal">
+    <h3 data-i18n="stuObTitle">Привет 👋</h3>
+    <p class="muted-note" style="margin-top:-8px;" data-i18n="stuObSub">Коротко о том, как это работает</p>
+
+    <div class="field" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:3px;" data-i18n="stuObStep1Title">1. Здесь ваши занятия</div>
+      <div class="muted-note" data-i18n="stuObStep1Text">Вкладка «Занятия» — что задано, что проверено, что оплачено. Вкладка «Календарь» — то же самое по датам.</div>
+    </div>
+    <div class="field" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:3px;" data-i18n="stuObStep2Title">2. Сдавайте домашку прямо тут</div>
+      <div class="muted-note" data-i18n="stuObStep2Text">Кнопка «Сдать работу» под заданием — текст, фото или файл. Преподаватель увидит и отметит проверенным.</div>
+    </div>
+    <div class="field" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:3px;" data-i18n="stuObStep3Title">3. Прогресс и оплата</div>
+      <div class="muted-note" data-i18n="stuObStep3Text">Вкладка «Прогресс» — уровень, серия занятий, достижения. Статус оплаты виден на каждом занятии.</div>
+    </div>
+    <div class="field" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:3px;" data-i18n="stuObStep4Title">4. Напоминания</div>
+      <div class="muted-note" id="stuObStep4Text"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-primary" style="width:100%;" onclick="dismissStuOnboarding()" data-i18n="obDone">Понятно, начнём</button>
+    </div>
+  </div>
+</div>
+
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settingsModalOverlay">
   <div class="modal">
     <h3 data-i18n="settingsTitle">Настройки</h3>
     <button type="button" class="btn-ghost btn-sm" style="margin:-6px 0 6px;padding-left:0;" onclick="showOnboardingAgain()" data-i18n="howToUse">❔ Как пользоваться приложением</button>
 
-    <div class="section-label" style="margin-top:0;" data-i18n="workSchedule">Рабочий график</div>
-    <div class="field-row">
-      <div class="field">
-        <label data-i18n="startOfDay">Начало дня</label>
-        <input type="text" id="workStartInput" placeholder="10:00" maxlength="5">
-      </div>
-      <div class="field">
-        <label data-i18n="endOfDay">Конец дня</label>
-        <input type="text" id="workEndInput" placeholder="21:00" maxlength="5">
+    <div class="section-label" style="margin-top:0;" data-i18n="yourAccount">Ваш аккаунт</div>
+    <div class="field" id="ownLoginRow" style="display:none;">
+      <label data-i18n="yourLogin">Ваш логин</label>
+      <input type="text" id="ownLoginInput" readonly onclick="this.select()">
+    </div>
+    <div class="muted-note" id="ownTgNote" style="display:none;margin-bottom:10px;" data-i18n="ownTgNoteTxt">Вы входите через Telegram — отдельного логина и пароля нет.</div>
+    <div id="changePasswordRow" style="display:none;margin-bottom:10px;">
+      <button type="button" class="btn-ghost btn-sm" style="padding-left:0;" onclick="toggleChangePassword()" data-i18n="changePasswordBtn">🔑 Изменить пароль</button>
+      <div id="changePasswordFields" style="display:none;margin-top:8px;">
+        <input type="password" id="newPasswordInput" placeholder="Новый пароль, минимум 6 символов" data-i18n-ph="newPasswordPh" style="margin-bottom:8px;">
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn-secondary btn-sm" onclick="toggleChangePassword()" data-i18n="cancel">Отмена</button>
+          <button type="button" class="btn-primary btn-sm" onclick="changeOwnPassword()" data-i18n="savePasswordBtn">Сохранить пароль</button>
+        </div>
+        <div class="muted-note" style="margin-top:6px;" data-i18n="passwordCantShowNote">Текущий пароль показать нельзя — он хранится в зашифрованном виде. Можно только задать новый.</div>
       </div>
     </div>
+
+    <div class="section-label" data-i18n="workSchedule">Рабочий график</div>
     <div class="field">
-      <label data-i18n="workDaysLabel">Рабочие дни</label>
-      <div class="seg-row" id="workDaysRow">
-        <button type="button" class="seg" data-day="1" onclick="toggleWorkDay(1)" data-i18n="wkMon">Пн</button>
-        <button type="button" class="seg" data-day="2" onclick="toggleWorkDay(2)" data-i18n="wkTue">Вт</button>
-        <button type="button" class="seg" data-day="3" onclick="toggleWorkDay(3)" data-i18n="wkWed">Ср</button>
-        <button type="button" class="seg" data-day="4" onclick="toggleWorkDay(4)" data-i18n="wkThu">Чт</button>
-        <button type="button" class="seg" data-day="5" onclick="toggleWorkDay(5)" data-i18n="wkFri">Пт</button>
-        <button type="button" class="seg" data-day="6" onclick="toggleWorkDay(6)" data-i18n="wkSat">Сб</button>
-        <button type="button" class="seg" data-day="7" onclick="toggleWorkDay(7)" data-i18n="wkSun">Вс</button>
-      </div>
+      <label data-i18n="workDaysLabel">Рабочие дни и часы</label>
+      <div class="muted-note" style="margin:-4px 0 8px;" data-i18n="workHoursHint">У каждого дня — своё время. Выключенные дни считаются выходными.</div>
+      <div id="workHoursRows"></div>
+    </div>
     </div>
     <div class="field">
       <label data-i18n="defaultDurLabel">Длительность занятия по умолчанию</label>
@@ -1407,6 +1458,16 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5O8013PLy1De0E24NQQqGQ_0WEVAkvK';
 // Имя функции синхронизации — то, что стоит в конце её адреса
 // в списке Edge Functions.
 const SUPABASE_SYNC_FUNCTION = 'hyper-handler';
+
+// Если бот подключён как Telegram Mini App — у него в BotFather задано
+// короткое имя (Bot Settings → Menu Button / Mini App) — впишите сюда его
+// username и это короткое имя. Тогда кнопка «🔗 Пригласить» будет давать
+// ссылку прямо на бота: открывая её, ученик автоматически проходит через
+// Telegram, и напоминания начинают приходить сами, без отдельного «нажмите
+// Start». Оставьте оба поля пустыми — ссылка останется обычной веб-ссылкой,
+// логин и пароль ученик получит как и раньше, просто без Telegram-напоминаний.
+const BOT_USERNAME = 'tutor_diary_bot';   // без @
+const MINI_APP_SHORT_NAME = '';   // короткое имя Mini App из BotFather — впишите, когда узнаете (см. README-accounts.md, шаг 6)
 /* ====================================================================== */
 
 const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1504,9 +1565,9 @@ const I18N = {
   // Настройки
   settingsTitle:   { ru:'Настройки', en:'Settings' },
   workSchedule:    { ru:'Рабочий график', en:'Work schedule' },
-  startOfDay:      { ru:'Начало дня', en:'Start of day' },
-  endOfDay:        { ru:'Конец дня', en:'End of day' },
-  workDaysLabel:   { ru:'Рабочие дни', en:'Working days' },
+  workDaysLabel:   { ru:'Рабочие дни и часы', en:'Working days & hours' },
+  workHoursHint:   { ru:'У каждого дня — своё время. Выключенные дни считаются выходными.',
+                     en:'Each day has its own hours. Days you turn off count as time off.' },
   defaultDurLabel: { ru:'Длительность занятия по умолчанию', en:'Default lesson duration' },
   durMin:          { ru:'мин', en:'min' },
   durHour:         { ru:'ч', en:'hr' },
@@ -1593,6 +1654,34 @@ const I18N = {
   editSubjectTitle:{ ru:'Изменить предмет', en:'Edit subject' },
   nameLabel:       { ru:'Название', en:'Name' },
   colorLabel:      { ru:'Цвет', en:'Color' },
+  yourAccount:     { ru:'Ваш аккаунт', en:'Your account' },
+  yourLogin:       { ru:'Ваш логин', en:'Your login' },
+  ownTgNoteTxt:    { ru:'Вы входите через Telegram — отдельного логина и пароля нет.', en:'You sign in via Telegram — there’s no separate login or password.' },
+  changePasswordBtn:{ ru:'🔑 Изменить пароль', en:'🔑 Change password' },
+  newPasswordPh:   { ru:'Новый пароль, минимум 6 символов', en:'New password, at least 6 characters' },
+  savePasswordBtn: { ru:'Сохранить пароль', en:'Save password' },
+  passwordCantShowNote: { ru:'Текущий пароль показать нельзя — он хранится в зашифрованном виде. Можно только задать новый.',
+                           en:'The current password can’t be shown — it’s stored encrypted. You can only set a new one.' },
+
+  // Онбординг ученика
+  stuObTitle:      { ru:'Привет 👋', en:'Hi 👋' },
+  stuObSub:        { ru:'Коротко о том, как это работает', en:'A quick overview of how this works' },
+  stuObStep1Title: { ru:'1. Здесь ваши занятия', en:'1. Your lessons live here' },
+  stuObStep1Text:  { ru:'Вкладка «Занятия» — что задано, что проверено, что оплачено. Вкладка «Календарь» — то же самое по датам.',
+                     en:'The "Lessons" tab shows what’s assigned, checked, and paid. The "Calendar" tab shows the same by date.' },
+  stuObStep2Title: { ru:'2. Сдавайте домашку прямо тут', en:'2. Submit homework right here' },
+  stuObStep2Text:  { ru:'Кнопка «Сдать работу» под заданием — текст, фото или файл. Преподаватель увидит и отметит проверенным.',
+                     en:'The "Submit work" button under an assignment — text, a photo, or a file. Your teacher will see it and mark it checked.' },
+  stuObStep3Title: { ru:'3. Прогресс и оплата', en:'3. Progress and payment' },
+  stuObStep3Text:  { ru:'Вкладка «Прогресс» — уровень, серия занятий, достижения. Статус оплаты виден на каждом занятии.',
+                     en:'The "Progress" tab has your level, streak, and achievements. Payment status shows on every lesson.' },
+  stuObStep4Title: { ru:'4. Напоминания', en:'4. Reminders' },
+  stuObStep4Active:{ ru:'Вы уже в Telegram — напоминания о занятиях и домашке будут приходить сюда же, в этот чат.',
+                     en:'You’re already in Telegram — reminders about lessons and homework will arrive right in this chat.' },
+  stuObStep4Link:  { ru:'Чтобы получать напоминания в Telegram, откройте бота {bot} и нажмите Start — один раз, дальше всё само.',
+                     en:'To get reminders in Telegram, open the bot {bot} and press Start — just once, then it’s automatic.' },
+  stuObStep4None:  { ru:'Напоминания в Telegram пока не подключены преподавателем — просто заглядывайте в приложение сами.',
+                     en:'Your teacher hasn’t set up Telegram reminders yet — just check back in the app yourself.' },
 
   // Кабинет ученика (динамика)
   recordLabel:     { ru:'рекорд', en:'record' },
@@ -1643,6 +1732,7 @@ function applyLang(){
   // Кнопки, текст которых меняется скриптом (вход/регистрация), нужно
   // пересчитать отдельно — data-i18n их не достаёт.
   if(document.getElementById('authSubmitBtn')) setAuthMode(authMode);
+  if(document.getElementById('stuObStep4Text')) renderStuOnboardingStep4();
 }
 function setLang(l){
   currentLang = (l === 'en') ? 'en' : 'ru';
@@ -1673,6 +1763,10 @@ function refreshCurrentView(){
 }
 
 let data = { students: [], settings: {} };
+// Код приглашения ученика, если открыли ссылку-диплинк на бота
+// (t.me/бот/приложение?startapp=код) — заполняется в init() из
+// Telegram start_param, дальше просто передаётся в tg-auth.
+let invite = null;
 let currentStudentId = null;
 let previousView = 'students';
 let editingStudentId = null;
@@ -2030,6 +2124,7 @@ async function afterSignIn(){
   if(me.role === 'student'){
     document.getElementById('studentApp').style.display = 'block';
     await loadStudentCabinet();
+    maybeShowStuOnboarding();
   } else {
     document.getElementById('teacherApp').style.display = 'block';
     await loadTeacherData();
@@ -2057,6 +2152,42 @@ function dismissOnboarding(){
 function showOnboardingAgain(){
   closeModal('settingsModalOverlay');
   openModal('onboardingModalOverlay');
+}
+
+/* То же самое, но для ученика — показывается один раз при первом входе.
+   Записать "видел/не видел" в students нельзя: по правилам доступа ученик
+   может только читать свою строку, не менять её — поэтому флаг живёт
+   в localStorage на этом устройстве, а не синхронизируется через Supabase. */
+const STU_OB_KEY_PREFIX = 'tutor_diary_stu_ob_seen_';
+function maybeShowStuOnboarding(){
+  if(demoMode) return;
+  if(!me) return;
+  try{ if(localStorage.getItem(STU_OB_KEY_PREFIX + me.id)) return; }catch(e){}
+  renderStuOnboardingStep4();
+  openModal('stuOnboardingModalOverlay');
+}
+function dismissStuOnboarding(){
+  try{ if(me) localStorage.setItem(STU_OB_KEY_PREFIX + me.id, '1'); }catch(e){}
+  closeModal('stuOnboardingModalOverlay');
+}
+function showStuOnboardingAgain(){
+  renderStuOnboardingStep4();
+  openModal('stuOnboardingModalOverlay');
+}
+/* Четвёртый шаг объясняет, откуда берутся Telegram-напоминания — три разных
+   текста в зависимости от того, открыто ли приложение уже в Telegram и
+   настроен ли у преподавателя диплинк на бота (BOT_USERNAME). */
+function renderStuOnboardingStep4(){
+  const el = document.getElementById('stuObStep4Text');
+  if(!el) return;
+  if(tg && tg.initData){
+    el.textContent = t('stuObStep4Active');
+  } else if(BOT_USERNAME){
+    el.innerHTML = t('stuObStep4Link').replace('{bot}',
+      `<a href="https://t.me/${BOT_USERNAME}" target="_blank" rel="noopener" style="color:var(--accent);">@${BOT_USERNAME}</a>`);
+  } else {
+    el.textContent = t('stuObStep4None');
+  }
 }
 
 function showAuthScreen(){
@@ -2334,6 +2465,13 @@ async function init(){
 
   const params = new URLSearchParams(location.search);
 
+  // Код приглашения из диплинка на бота: Telegram кладёт его в start_param,
+  // а не в адресную строку — обычный ?startapp= в URL нужен только как
+  // подстраховка, если initDataUnsafe почему-то недоступен.
+  invite = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param)
+    ? tg.initDataUnsafe.start_param
+    : (params.get('startapp') || params.get('tgWebAppStartParam') || null);
+
   // Демо: ?demo=teacher или ?demo=student — посмотреть экраны без базы.
   const demo = params.get('demo');
   if(demo === 'teacher' || demo === 'student'){
@@ -2391,6 +2529,23 @@ function normalize(){
   if(!st.workStart) st.workStart = '10:00';
   if(!st.workEnd) st.workEnd = '21:00';
   if(!Array.isArray(st.workDays)) st.workDays = [1,2,3,4,5,6]; // 1=пн … 7=вс
+  // Своё время на каждый день недели. Если ещё не настроено — переносим
+  // старые общие workStart/workEnd/workDays как стартовые значения, сами
+  // старые поля не трогаем (вдруг где-то ещё пригодятся).
+  if(!st.workHours || typeof st.workHours !== 'object'){
+    st.workHours = {};
+    for(let d=1; d<=7; d++){
+      st.workHours[d] = { on: st.workDays.includes(d), start: st.workStart, end: st.workEnd };
+    }
+  } else {
+    for(let d=1; d<=7; d++){
+      if(!st.workHours[d]) st.workHours[d] = { on: st.workDays.includes(d), start: st.workStart, end: st.workEnd };
+      const wh = st.workHours[d];
+      if(typeof wh.on !== 'boolean') wh.on = !!wh.on;
+      if(!wh.start) wh.start = st.workStart;
+      if(!wh.end) wh.end = st.workEnd;
+    }
+  }
   if(!st.provider) st.provider = 'anthropic';
   if(!st.apiKeys) st.apiKeys = {};
   if(!st.models) st.models = {};
@@ -3166,7 +3321,12 @@ async function inviteStudent(){
     const j = await resp.json();
     if(!resp.ok || !j.ok) throw new Error(j.error || 'Не удалось выдать доступ');
 
-    const link = location.origin + location.pathname + '?join=' + j.token;
+    // Если бот подключён как Mini App — ссылка ведёт прямо туда, и открытие
+    // её само включает Telegram-напоминания. Иначе — обычная веб-ссылка,
+    // логин с паролем работают одинаково в обоих случаях.
+    const link = (BOT_USERNAME && MINI_APP_SHORT_NAME && s.inviteCode)
+      ? `https://t.me/${BOT_USERNAME}/${MINI_APP_SHORT_NAME}?startapp=${s.inviteCode}`
+      : location.origin + location.pathname + '?join=' + j.token;
     showAccessModal(s.name, j.login, j.password, link);
   }catch(e){
     notifyToast('Ошибка: ' + (e.message||e));
@@ -3924,23 +4084,55 @@ function renderProviderFields(provider){
 function onProviderChange(){
   renderProviderFields(document.getElementById('providerSelect').value);
 }
-let draftWorkDays = [];
+let draftWorkHours = {};
 let draftDefaultDuration = 60;
-function toggleWorkDay(d){
-  const i = draftWorkDays.indexOf(d);
-  if(i >= 0) draftWorkDays.splice(i,1); else draftWorkDays.push(d);
-  renderWorkDays();
+const WEEKDAY_KEYS = { 1:'wkMon', 2:'wkTue', 3:'wkWed', 4:'wkThu', 5:'wkFri', 6:'wkSat', 7:'wkSun' };
+function toggleDraftWorkDay(d, checked){
+  if(!draftWorkHours[d]) draftWorkHours[d] = { on:false, start:'10:00', end:'21:00' };
+  draftWorkHours[d].on = checked;
+  renderWorkHoursRows();
 }
-function renderWorkDays(){
-  document.querySelectorAll('#workDaysRow .seg')
-    .forEach(b=>b.classList.toggle('on', draftWorkDays.includes(Number(b.dataset.day))));
+function updateDraftWorkHour(d, field, value){
+  if(!draftWorkHours[d]) draftWorkHours[d] = { on:false, start:'10:00', end:'21:00' };
+  draftWorkHours[d][field] = value;
+}
+function renderWorkHoursRows(){
+  // Перерисовывается только при переключении дня (вкл/выкл) — поля времени
+  // сохраняются по onchange (на потере фокуса), без перерисовки на каждый
+  // символ, так что терять фокус здесь не из-за чего.
+  const box = document.getElementById('workHoursRows');
+  if(!box) return;
+  box.innerHTML = [1,2,3,4,5,6,7].map(d=>{
+    const wh = draftWorkHours[d] || { on:false, start:'10:00', end:'21:00' };
+    return `<div class="work-day-row${wh.on ? '' : ' off'}">
+      <label class="work-day-toggle">
+        <input type="checkbox" ${wh.on ? 'checked' : ''} onchange="toggleDraftWorkDay(${d}, this.checked)">
+        <span data-i18n="${WEEKDAY_KEYS[d]}">${t(WEEKDAY_KEYS[d])}</span>
+      </label>
+      <input type="text" class="work-day-time" value="${wh.start}" maxlength="5" ${wh.on ? '' : 'disabled'}
+        onchange="updateDraftWorkHour(${d}, 'start', normalizeTimeInput(this.value, '10:00')); this.value = draftWorkHours[${d}].start;">
+      <span class="work-day-dash">–</span>
+      <input type="text" class="work-day-time" value="${wh.end}" maxlength="5" ${wh.on ? '' : 'disabled'}
+        onchange="updateDraftWorkHour(${d}, 'end', normalizeTimeInput(this.value, '21:00')); this.value = draftWorkHours[${d}].end;">
+    </div>`;
+  }).join('');
 }
 function openSettingsModal(){
+  // Логин виден только тем, кто регистрировался по логину/паролю — у тех, кто
+  // входит через Telegram, его просто нет, показываем короткую подсказку.
+  document.getElementById('ownLoginRow').style.display = (me && me.login) ? 'block' : 'none';
+  document.getElementById('ownLoginInput').value = (me && me.login) || '';
+  document.getElementById('ownTgNote').style.display = (me && !me.login && me.telegram_id) ? 'block' : 'none';
+  document.getElementById('changePasswordRow').style.display = (me && me.login) ? 'block' : 'none';
+  document.getElementById('changePasswordFields').style.display = 'none';
+
   const provider = data.settings.provider || 'anthropic';
-  document.getElementById('workStartInput').value = data.settings.workStart || '10:00';
-  document.getElementById('workEndInput').value = data.settings.workEnd || '21:00';
-  draftWorkDays = (data.settings.workDays || []).slice();
-  renderWorkDays();
+  draftWorkHours = {};
+  for(let d=1; d<=7; d++){
+    const wh = dayWorkHours(d);
+    draftWorkHours[d] = { on: !!wh.on, start: wh.start, end: wh.end };
+  }
+  renderWorkHoursRows();
   setDefaultDurationField(data.settings.defaultDuration || 60);
   const sel = document.getElementById('providerSelect');
   sel.innerHTML = Object.keys(AI_PROVIDERS)
@@ -3948,6 +4140,27 @@ function openSettingsModal(){
   sel.value = provider;
   renderProviderFields(provider);
   openModal('settingsModalOverlay');
+}
+/* Пароль показать нельзя — Supabase Auth хранит только его хэш, восстановить
+   исходный текст в принципе невозможно (это не наше ограничение, это как
+   вообще работают пароли). Единственное, что можно, — задать новый. */
+function toggleChangePassword(){
+  const el = document.getElementById('changePasswordFields');
+  const opening = el.style.display === 'none';
+  el.style.display = opening ? 'block' : 'none';
+  document.getElementById('newPasswordInput').value = '';
+}
+async function changeOwnPassword(){
+  const pw = document.getElementById('newPasswordInput').value;
+  if(!pw || pw.length < 6){ notifyToast('Пароль должен быть не короче 6 символов.'); return; }
+  try{
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if(error) throw error;
+    notifyToast('Пароль обновлён.');
+    toggleChangePassword();
+  }catch(e){
+    notifyToast('Не удалось изменить пароль: ' + (e.message||e));
+  }
 }
 function normalizeTimeInput(value, fallback){
   const m = String(value||'').trim().match(/^(\d{1,2})[:.\s]?(\d{2})?$/);
@@ -3957,11 +4170,25 @@ function normalizeTimeInput(value, fallback){
   return String(h).padStart(2,'0') + ':' + String(mi).padStart(2,'0');
 }
 function saveSettings(){
-  const ws = normalizeTimeInput(document.getElementById('workStartInput').value, '10:00');
-  const we = normalizeTimeInput(document.getElementById('workEndInput').value, '21:00');
-  data.settings.workStart = ws;
-  data.settings.workEnd = (toMinutes(we) > toMinutes(ws)) ? we : '21:00';
-  data.settings.workDays = draftWorkDays.slice().sort();
+  const workHours = {};
+  const onDays = [];
+  for(let d=1; d<=7; d++){
+    const wh = draftWorkHours[d] || { on:false, start:'10:00', end:'21:00' };
+    const start = normalizeTimeInput(wh.start, '10:00');
+    let end = normalizeTimeInput(wh.end, '21:00');
+    if(toMinutes(end) <= toMinutes(start)) end = '21:00';
+    workHours[d] = { on: !!wh.on, start, end };
+    if(wh.on) onDays.push(d);
+  }
+  data.settings.workHours = workHours;
+  // Старые общие поля больше не редактируются напрямую, но держим их в
+  // разумном состоянии на случай, если их всё ещё где-то читают: диапазон,
+  // покрывающий все включённые дни, и список включённых дней.
+  data.settings.workDays = onDays;
+  if(onDays.length){
+    data.settings.workStart = onDays.reduce((min,d)=> toMinutes(workHours[d].start) < toMinutes(min) ? workHours[d].start : min, workHours[onDays[0]].start);
+    data.settings.workEnd = onDays.reduce((max,d)=> toMinutes(workHours[d].end) > toMinutes(max) ? workHours[d].end : max, workHours[onDays[0]].end);
+  }
   data.settings.defaultDuration = draftDefaultDuration;
 
   const provider = document.getElementById('providerSelect').value;
@@ -4836,6 +5063,13 @@ function minutesToHHMM(mins){
 function isoWeekday(date){          // 1 = понедельник … 7 = воскресенье
   return ((date.getDay() + 6) % 7) + 1;
 }
+function dayWorkHours(weekday){     // {on, start, end} для конкретного дня недели
+  const wh = data.settings.workHours && data.settings.workHours[weekday];
+  return wh || { on: false, start: data.settings.workStart || '10:00', end: data.settings.workEnd || '21:00' };
+}
+function dayIsWork(weekday){
+  return !!dayWorkHours(weekday).on;
+}
 function startOfWeek(date){
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   d.setDate(d.getDate() - (isoWeekday(d) - 1));
@@ -4884,7 +5118,7 @@ function computeStats(){
     const ds = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
     const lessons = lessonsOnDate(ds);
     const minutes = lessons.reduce((sum,l)=> sum + (l.duration || data.settings.defaultDuration), 0);
-    return { date: d, dateStr: ds, lessons, minutes, isWorkDay: data.settings.workDays.includes(isoWeekday(d)) };
+    return { date: d, dateStr: ds, lessons, minutes, isWorkDay: dayIsWork(isoWeekday(d)) };
   });
 
   const all = dayStats.flatMap(d=>d.lessons);
@@ -4892,8 +5126,11 @@ function computeStats(){
   const earned = all.filter(l=>l.paid).reduce((s,l)=> s + (Number(l.price)||0), 0);
   const unpaid = all.filter(l=>!l.paid).reduce((s,l)=> s + (Number(l.price)||0), 0);
 
-  const workWindow = Math.max(0, toMinutes(data.settings.workEnd) - toMinutes(data.settings.workStart));
-  const capacity = dayStats.filter(d=>d.isWorkDay).length * workWindow;
+  // У каждого дня теперь своё окно — суммируем окна только рабочих дней периода.
+  const capacity = dayStats.filter(d=>d.isWorkDay).reduce((sum,d)=>{
+    const wh = dayWorkHours(isoWeekday(d.date));
+    return sum + Math.max(0, toMinutes(wh.end) - toMinutes(wh.start));
+  }, 0);
   const loadPct = capacity > 0 ? Math.min(100, Math.round(totalMinutes / capacity * 100)) : 0;
 
   const byStudent = {};
@@ -4914,10 +5151,16 @@ function computeStats(){
 }
 
 /* Свободные окна: рабочее окно минус занятия. Минимальное окно — 30 мин. */
-function freeSlotsForDate(dateStr, isWorkDay){
+function freeSlotsForDate(dateStr, isWorkDay, weekday){
   if(!isWorkDay) return [];
-  const dayStart = toMinutes(data.settings.workStart);
-  const dayEnd = toMinutes(data.settings.workEnd);
+  // weekday можно не передавать — тогда возьмём его из самой даты.
+  if(!weekday){
+    const [y,m,dd] = dateStr.split('-').map(Number);
+    weekday = isoWeekday(new Date(y, m-1, dd));
+  }
+  const wh = dayWorkHours(weekday);
+  const dayStart = toMinutes(wh.start);
+  const dayEnd = toMinutes(wh.end);
 
   const busy = lessonsOnDate(dateStr)
     .filter(l=>l.time)
@@ -5040,7 +5283,14 @@ function renderLoadChart(st){
   }
 
   const days = st.dayStats;
-  const workWindow = Math.max(60, toMinutes(data.settings.workEnd) - toMinutes(data.settings.workStart));
+  // Раньше окно было одно на все дни, теперь у каждого рабочего дня — своё.
+  // Для пунктирной линии «полный день» берём самое длинное окно среди рабочих
+  // дней периода — так она остаётся понятным ориентиром максимума.
+  const workWindows = days.filter(d=>d.isWorkDay).map(d=>{
+    const wh = dayWorkHours(isoWeekday(d.date));
+    return Math.max(0, toMinutes(wh.end) - toMinutes(wh.start));
+  });
+  const workWindow = Math.max(60, ...workWindows);
   const maxMin = Math.max(workWindow, ...days.map(d=>d.minutes));
 
   const W = Math.max(320, days.length * 46);
@@ -5099,7 +5349,7 @@ function renderFreeSlots(st){
     return;
   }
   box.innerHTML = shown.map(d=>{
-    const slots = freeSlotsForDate(d.dateStr, d.isWorkDay);
+    const slots = freeSlotsForDate(d.dateStr, d.isWorkDay, isoWeekday(d.date));
     const name = d.date.toLocaleDateString(localeTag(), {weekday:'short', day:'numeric', month:'short'});
     const chips = slots.length
       ? slots.map(s=>`<span class="slot-chip">${minutesToHHMM(s.start)}–${minutesToHHMM(s.end)}</span>`).join('')
