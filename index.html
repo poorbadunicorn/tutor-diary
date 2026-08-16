@@ -587,14 +587,20 @@
     border-bottom:1px solid var(--border);
   }
   .work-day-row:last-child{border-bottom:none;}
-  .work-day-toggle{
+  /* .field .work-day-toggle (не просто .work-day-toggle) — чтобы перебить
+     общее правило .field label{display:block}, иначе чекбокс и буква дня
+     теряют flex-выравнивание и одинаковый интервал. */
+  .field .work-day-toggle{
     display:flex;align-items:center;gap:8px;width:64px;flex-shrink:0;
-    font-size:13px;font-weight:500;color:var(--text);cursor:pointer;
+    margin-bottom:0;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;
   }
   .work-day-row.off .work-day-toggle{color:var(--muted);}
   .work-day-toggle input[type="checkbox"]{accent-color:var(--accent);width:16px;height:16px;cursor:pointer;flex-shrink:0;}
-  .work-day-time{
-    width:64px;flex-shrink:0;text-align:center;padding:6px 4px;font-size:13px;
+  /* Специфичность .field .work-day-time нужна, чтобы перебить общее правило
+     .field input{width:100%} — иначе оба поля времени пытаются занять всю
+     строку целиком и вытесняют друг друга (и тире между ними). */
+  .field .work-day-time{
+    width:auto;flex:1 1 0;min-width:0;text-align:center;padding:6px 4px;font-size:13px;
     background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);
   }
   .work-day-time:disabled{opacity:.4;}
