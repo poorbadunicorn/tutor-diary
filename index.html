@@ -1426,11 +1426,11 @@
       <input type="text" id="customBaseUrlInput" placeholder="https://api.example.com/v1">
       <div class="muted-note" style="margin-top:6px;">Адрес до <code>/chat/completions</code>. Например, для Ollama: <code>http://localhost:11434/v1</code></div>
     </div>
-    <div class="field">
+    <div class="field" id="apiKeyFieldWrap">
       <label id="apiKeyLabel" data-i18n="apiKeyLabel">API-ключ (хранится только на вашем устройстве)</label>
       <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
     </div>
-    <div class="field">
+    <div class="field" id="modelFieldWrap">
       <label data-i18n="modelLabel">Модель</label>
       <input type="text" id="modelInput" placeholder="claude-sonnet-5">
     </div>
@@ -1797,6 +1797,16 @@ let selectedSubjectColor = COLORS[0];
    api: 'anthropic' | 'gemini' | 'openai' (openai = формат OpenAI, его понимают
    почти все сервисы: DeepSeek, OpenRouter, Groq, Mistral, локальные модели…). */
 const AI_PROVIDERS = {
+  // Общий бесплатный ассистент — подключён у всех сразу, свой ключ вводить
+  // не нужно. Работает через отдельную функцию ai-chat на сервере, которая
+  // держит общий Groq-ключ в секрете (см. supabase/functions/ai-chat).
+  // Стоит первым — значит, это провайдер по умолчанию для всех, у кого
+  // ещё не выбран свой.
+  shared: {
+    label: 'Бесплатный ассистент (уже подключено)',
+    api: 'shared',
+    keyHelp: 'Общий бесплатный доступ на базе Groq, его настроил администратор сервиса — свой ключ вводить не нужно. Можно в любой момент подключить свой сервис ниже.'
+  },
   anthropic: {
     label: 'Anthropic (Claude)',
     api: 'anthropic',
@@ -2551,7 +2561,7 @@ function normalize(){
       if(!wh.end) wh.end = st.workEnd;
     }
   }
-  if(!st.provider) st.provider = 'anthropic';
+  if(!st.provider) st.provider = 'shared'; // бесплатный ассистент по умолчанию, свой ключ не нужен
   if(!st.apiKeys) st.apiKeys = {};
   if(!st.models) st.models = {};
   if(st.customBaseUrl === undefined) st.customBaseUrl = '';
@@ -3954,6 +3964,30 @@ function showChatThinking(on){
 }
 /* Один запрос к выбранному ИИ-сервису. Возвращает текст ответа. */
 async function callAiProvider(cfg, systemPrompt, msgs){
+  if(cfg.api === 'shared'){
+    // Общий бесплатный ассистент: свой ключ не нужен, запрос идёт через
+    // серверную функцию ai-chat, которая держит общий Groq-ключ в секрете
+    // и сама проверяет, что вызывающий — реально вошедший пользователь.
+    const { data: sess } = await sb.auth.getSession();
+    if(!sess || !sess.session) throw new Error('Нужно быть вошедшим в аккаунт.');
+    const resp = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/functions/v1/ai-chat', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'authorization': 'Bearer ' + sess.session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        system: systemPrompt,
+        messages: msgs.map(m=>({ role: m.role, content: m.text })),
+        model: cfg.model || undefined
+      })
+    });
+    const json = await resp.json();
+    if(!resp.ok || !json.ok) throw new Error(json.error || `Ошибка общего ассистента (${resp.status})`);
+    return json.text || '';
+  }
+
   if(cfg.api === 'anthropic'){
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -4019,8 +4053,13 @@ async function callAiProvider(cfg, systemPrompt, msgs){
 
 async function sendChatMessage(){
   const cfg = currentAiConfig();
-  if(!cfg.key){ alert('Сначала выберите сервис ИИ и добавьте API-ключ в Настройках.'); openSettingsModal(); return; }
-  if(!cfg.model){ alert('Укажите модель в Настройках.'); openSettingsModal(); return; }
+  // У общего бесплатного ассистента нет ни своего ключа, ни модели — сервер
+  // сам подставляет то, что нужно, поэтому эти проверки его не касаются.
+  if(cfg.api !== 'shared'){
+    if(!cfg.key){ alert('Сначала выберите сервис ИИ и добавьте API-ключ в Настройках.'); openSettingsModal(); return; }
+    if(!cfg.model){ alert('Укажите модель в Настройках.'); openSettingsModal(); return; }
+  }
+  if(cfg.api === 'shared' && (!sb || !me)){ alert('Общий ассистент работает только в аккаунте с базой — сначала войдите.'); return; }
 
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
@@ -4071,17 +4110,24 @@ ${lessonsContext || 'Занятий пока нет.'}
 /* ---------- SETTINGS ---------- */
 function renderProviderFields(provider){
   const cfg = AI_PROVIDERS[provider] || AI_PROVIDERS.anthropic;
+  const isShared = cfg.api === 'shared';
+
+  // Общий бесплатный ассистент не спрашивает ни ключ, ни модель — сервер
+  // сам знает, что использовать. Поля просто скрываем.
+  document.getElementById('apiKeyFieldWrap').style.display = isShared ? 'none' : 'block';
+  document.getElementById('modelFieldWrap').style.display = isShared ? 'none' : 'block';
 
   const keyInput = document.getElementById('apiKeyInput');
-  keyInput.placeholder = cfg.keyPlaceholder;
+  keyInput.placeholder = cfg.keyPlaceholder || '';
   keyInput.value = (data.settings.apiKeys && data.settings.apiKeys[provider]) || '';
 
   const modelInput = document.getElementById('modelInput');
-  modelInput.placeholder = cfg.modelPlaceholder;
+  modelInput.placeholder = cfg.modelPlaceholder || '';
   modelInput.value = (data.settings.models && data.settings.models[provider]) || '';
 
-  document.getElementById('providerNote').textContent =
-    cfg.keyHelp + ' Ключ отправляется напрямую из вашего браузера в выбранный сервис — больше никуда он не передаётся.';
+  document.getElementById('providerNote').textContent = isShared
+    ? cfg.keyHelp
+    : cfg.keyHelp + ' Ключ отправляется напрямую из вашего браузера в выбранный сервис — больше никуда он не передаётся.';
 
   document.getElementById('customBaseUrlWrap').style.display = cfg.baseUrl ? 'none' : (cfg.api === 'openai' ? 'block' : 'none');
   document.getElementById('customBaseUrlInput').value = data.settings.customBaseUrl || '';
@@ -4209,8 +4255,8 @@ function saveSettings(){
 }
 function currentAiConfig(){
   const st = data.settings || {};
-  const provider = st.provider || 'anthropic';
-  const cfg = AI_PROVIDERS[provider] || AI_PROVIDERS.anthropic;
+  const provider = st.provider || 'shared';
+  const cfg = AI_PROVIDERS[provider] || AI_PROVIDERS.shared;
   return {
     api: cfg.api,
     key: (st.apiKeys && st.apiKeys[provider]) || '',
