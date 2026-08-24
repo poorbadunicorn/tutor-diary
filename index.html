@@ -222,6 +222,16 @@
   .chip a{color:var(--text);text-decoration:none;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:4px;}
   .chip button{background:transparent;color:var(--muted);padding:1px 3px;font-size:12px;border-radius:50%;line-height:1;}
   .chip button:hover{color:var(--danger);background:var(--danger-dim);}
+  /* Просмотр картинки прямо в приложении, без выхода из мини-приложения */
+  .image-preview-box{position:relative;max-width:92vw;max-height:88vh;}
+  .image-preview-box img{display:block;max-width:92vw;max-height:88vh;border-radius:10px;object-fit:contain;}
+  .image-preview-close{
+    position:absolute;top:-14px;right:-14px;width:32px;height:32px;border-radius:50%;
+    background:var(--surface);border:1px solid var(--border);color:var(--text);
+    display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.4);
+  }
+  .image-preview-close:hover{color:var(--danger);border-color:var(--danger-dim);}
   /* Smart input: textarea that auto-detects links, accepts pasted/dropped photos & files */
   .smart-input{position:relative;}
   .smart-input textarea{padding-right:42px;}
@@ -1061,10 +1071,11 @@
     </div>
 
     <div class="field">
-      <label>Ссылка на видеовстречу</label>
-      <div class="link-row">
-        <input type="text" id="lessonMeetingUrl" placeholder="Zoom, Meet, Телемост — любая ссылка">
-        <button type="button" class="seg" onclick="openMeetingMenu()" title="Создать встречу">＋</button>
+      <label>Ссылки на видеовстречи</label>
+      <div id="meetingUrlsList"></div>
+      <div class="seg-row" style="margin-top:6px;">
+        <button type="button" class="seg" onclick="addMeetingUrlRow()">+ Добавить ссылку</button>
+        <button type="button" class="seg" onclick="openMeetingMenu()" title="Создать встречу">＋ Создать</button>
       </div>
       <div class="seg-row" id="meetingPlatforms" style="display:none;margin-top:8px;">
         <button type="button" class="seg" onclick="createZoomMeeting()">Zoom автоматически</button>
@@ -1441,6 +1452,14 @@
       <button class="btn-secondary" onclick="closeModal('settingsModalOverlay')" data-i18n="cancel">Отмена</button>
       <button class="btn-primary" onclick="saveSettings()" data-i18n="save">Сохранить</button>
     </div>
+  </div>
+</div>
+
+<!-- IMAGE PREVIEW MODAL: просмотр картинки без выхода из приложения -->
+<div class="modal-overlay" id="imagePreviewModalOverlay">
+  <div class="image-preview-box">
+    <button type="button" class="image-preview-close" onclick="closeModal('imagePreviewModalOverlay')" aria-label="Закрыть" title="Закрыть">✕</button>
+    <img id="imagePreviewImg" src="" alt="">
   </div>
 </div>
 
@@ -2259,6 +2278,7 @@ function rowToLesson(l){
     grade: l.grade || null,
     gradeComment: l.grade_comment || '',
     meetingUrl: l.meeting_url || '',
+    meetingUrls: Array.isArray(l.meeting_urls) && l.meeting_urls.length ? l.meeting_urls : (l.meeting_url ? [l.meeting_url] : []),
     meetingId: l.meeting_id || ''
   };
 }
@@ -2300,7 +2320,8 @@ async function pushTeacherData(){
         recurrence_id: l.recurrenceId || null,
         grade: l.grade || null,
         grade_comment: l.gradeComment || '',
-        meeting_url: l.meetingUrl || '',
+        meeting_url: l.meetingUrl || (Array.isArray(l.meetingUrls) ? l.meetingUrls[0] : '') || '',
+        meeting_urls: Array.isArray(l.meetingUrls) ? l.meetingUrls.filter(Boolean) : (l.meetingUrl ? [l.meetingUrl] : []),
         meeting_id: l.meetingId || ''
       }));
       (s.materials||[]).forEach(m=>materialRows.push({
@@ -2886,6 +2907,40 @@ function removeAttachment(key, id){
   drafts[key] = drafts[key].filter(a=>a.id!==id);
   renderAttachmentChips(key);
 }
+/* Открыть файл/ссылку так, чтобы это не выглядело как "выход из приложения":
+   в Telegram — через его собственный внутрибраузер (tg.openLink, у него есть
+   нормальная кнопка "Закрыть"), вне Telegram — обычной новой вкладкой.
+   Раньше файлы открывались через <a download>, а атрибут download браузер
+   игнорирует для чужого домена (файлы лежат в Supabase, не на домене
+   приложения) — вместо скачивания это была обычная навигация текущей
+   вкладки, из-за которой было не выйти, кроме как закрыть всё приложение. */
+async function openAttachmentLink(ev, el){
+  if(ev) ev.preventDefault();
+  let url = el.getAttribute('href');
+  if(!url || url === '#'){
+    const path = el.getAttribute('data-att-path');
+    if(path) url = await signedUrl(path);
+  }
+  if(!url || url === '#') return false;
+  if(tg && tg.openLink) tg.openLink(url);
+  else window.open(url, '_blank');
+  return false;
+}
+/* То же самое, но для картинок — открываем не во внешнем окне, а прямо
+   внутри приложения (см. #imagePreviewModalOverlay), закрывается одной
+   кнопкой, без выхода из мини-приложения. */
+async function openImagePreview(ev, el){
+  if(ev) ev.preventDefault();
+  let url = el.getAttribute('href');
+  if(!url || url === '#'){
+    const path = el.getAttribute('data-att-path');
+    if(path) url = await signedUrl(path);
+  }
+  if(!url || url === '#') return false;
+  document.getElementById('imagePreviewImg').src = url;
+  openModal('imagePreviewModalOverlay');
+  return false;
+}
 function renderAttachmentChips(key){
   const c = document.getElementById(key+'AttachChips');
   if(!c) return;
@@ -2899,11 +2954,11 @@ function renderAttachmentChips(key){
       return `<span class="chip">⏳ ${escapeHtml(a.name)}${rm}</span>`;
     }
     if(a.kind==='image'){
-      return `<span class="chip"><img ${imgSrcAttr(a)} alt="">${rm}</span>`;
+      return `<span class="chip"><a ${fileHrefAttr(a)} onclick="return openImagePreview(event, this)" style="cursor:pointer;"><img ${imgSrcAttr(a)} alt=""></a>${rm}</span>`;
     } else if(a.kind==='file'){
-      return `<span class="chip"><a ${fileHrefAttr(a)} download="${escapeHtml(a.name)}">📄 ${escapeHtml(a.name)}</a>${rm}</span>`;
+      return `<span class="chip"><a ${fileHrefAttr(a)} onclick="return openAttachmentLink(event, this)">📄 ${escapeHtml(a.name)}</a>${rm}</span>`;
     } else {
-      return `<span class="chip"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">🔗 ${escapeHtml(a.name)}</a>${rm}</span>`;
+      return `<span class="chip"><a href="${escapeHtml(a.url)}" onclick="return openAttachmentLink(event, this)">🔗 ${escapeHtml(a.name)}</a>${rm}</span>`;
     }
   }).join('');
 }
@@ -2918,11 +2973,11 @@ function renderAttachmentsView(atts){
   if(!atts || atts.length===0) return '';
   const inner = atts.map(a=>{
     if(a.kind==='image'){
-      return `<span class="chip"><a ${fileHrefAttr(a)} target="_blank" rel="noopener"><img ${imgSrcAttr(a)} alt=""></a></span>`;
+      return `<span class="chip"><a ${fileHrefAttr(a)} onclick="return openImagePreview(event, this)" style="cursor:pointer;"><img ${imgSrcAttr(a)} alt=""></a></span>`;
     } else if(a.kind==='file'){
-      return `<span class="chip"><a ${fileHrefAttr(a)} download="${escapeHtml(a.name)}">📄 ${escapeHtml(a.name)}</a></span>`;
+      return `<span class="chip"><a ${fileHrefAttr(a)} onclick="return openAttachmentLink(event, this)">📄 ${escapeHtml(a.name)}</a></span>`;
     } else {
-      return `<span class="chip"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">🔗 ${escapeHtml(a.name)}</a></span>`;
+      return `<span class="chip"><a href="${escapeHtml(a.url)}" onclick="return openAttachmentLink(event, this)">🔗 ${escapeHtml(a.name)}</a></span>`;
     }
   }).join('');
   return `<div class="chips-row">${inner}</div>`;
@@ -3025,7 +3080,7 @@ function renderLessons(s){
         </div>
       </div>
       ${l.topic ? `<div class="lesson-topic"><span class="label">Тема: </span>${escapeHtml(l.topic)}</div>` : ''}
-      ${l.meetingUrl ? `<div class="lesson-topic"><a class="meet-link" href="${escapeHtml(l.meetingUrl)}" target="_blank" rel="noopener">🎥 Подключиться к занятию</a></div>` : ''}
+      ${renderMeetingLinksHtml(l, 'Подключиться к занятию')}
       ${l.grade ? `<div class="lesson-topic"><span class="grade-badge grade-${l.grade}">${GRADE_LABEL[l.grade]}</span>
         <span class="muted-note"> +${XP_FOR_GRADE[l.grade]} очков${l.gradeComment ? ' — '+escapeHtml(l.gradeComment) : ''}</span></div>` : ''}
       ${hasHwContent ? `
@@ -3515,21 +3570,68 @@ function pickGrade(g){
   }
 }
 
-/* ---------- ССЫЛКА НА ВИДЕОВСТРЕЧУ ---------- */
+/* ---------- ССЫЛКИ НА ВИДЕОВСТРЕЧИ (можно несколько на одно занятие) ---------- */
+let draftMeetingUrls = [];
+/* Старые занятия хранят одну ссылку в meetingUrl — новые пишут массив
+   meetingUrls, а meetingUrl оставляем как зеркало первой ссылки для
+   обратной совместимости с тем, что могло её ещё где-то читать. */
+function meetingUrlsOf(l){
+  if(l && Array.isArray(l.meetingUrls)) return l.meetingUrls.filter(Boolean);
+  if(l && l.meetingUrl) return [l.meetingUrl];
+  return [];
+}
+/* Рисует одну строку на каждую ссылку занятия (обычно она одна, но если
+   преподаватель добавил несколько — например, отдельно ссылку и на видео,
+   и в чат — увидит их все). Открываются через openAttachmentLink, чтобы
+   в Telegram это шло через его внутрибраузер, а не выкидывало из приложения. */
+function renderMeetingLinksHtml(l, label){
+  const urls = meetingUrlsOf(l);
+  if(!urls.length) return '';
+  return urls.map((u,i)=>
+    `<div class="lesson-topic"><a class="meet-link" href="${escapeHtml(u)}" onclick="return openAttachmentLink(event, this)">🎥 ${escapeHtml(label)}${urls.length>1 ? ' '+(i+1) : ''}</a></div>`
+  ).join('');
+}
+function renderMeetingUrlsList(){
+  const box = document.getElementById('meetingUrlsList');
+  if(!box) return;
+  if(!draftMeetingUrls.length){
+    box.innerHTML = `<div class="muted-note">Ссылок пока нет.</div>`;
+    return;
+  }
+  box.innerHTML = draftMeetingUrls.map((url,i)=>`
+    <div class="link-row" style="margin-bottom:6px;">
+      <input type="text" value="${escapeHtml(url)}" placeholder="Zoom, Meet, Телемост — любая ссылка"
+        oninput="updateMeetingUrl(${i}, this.value)">
+      <button type="button" class="seg" onclick="removeMeetingUrl(${i})" title="Удалить ссылку">✕</button>
+    </div>`).join('');
+}
+function addMeetingUrlRow(url){
+  draftMeetingUrls.push(url || '');
+  renderMeetingUrlsList();
+  const inputs = document.getElementById('meetingUrlsList').querySelectorAll('input');
+  if(inputs.length) inputs[inputs.length-1].focus();
+}
+function updateMeetingUrl(i, val){
+  draftMeetingUrls[i] = val;
+}
+function removeMeetingUrl(i){
+  draftMeetingUrls.splice(i,1);
+  renderMeetingUrlsList();
+}
 function openMeetingMenu(){
   const el = document.getElementById('meetingPlatforms');
   el.style.display = el.style.display === 'none' ? 'flex' : 'none';
 }
 function openPlatform(url){
-  // Открываем сервис в новой вкладке: ссылку оттуда вставите в поле выше
+  // Открываем сервис в новой вкладке: ссылку оттуда вставите кнопкой "+ Добавить ссылку"
   if(tg && tg.openLink) tg.openLink(url); else window.open(url, '_blank');
   document.getElementById('meetingHint').textContent =
-    'Создайте встречу на сайте и вставьте её ссылку в поле выше.';
+    'Создайте встречу на сайте, вернитесь сюда и добавьте её ссылку кнопкой «+ Добавить ссылку».';
 }
 async function createZoomMeeting(){
   const hint = document.getElementById('meetingHint');
   if(demoMode){
-    document.getElementById('lessonMeetingUrl').value = 'https://zoom.us/j/9876543210';
+    addMeetingUrlRow('https://zoom.us/j/9876543210');
     hint.textContent = 'В демо ссылка вымышленная.';
     return;
   }
@@ -3556,7 +3658,7 @@ async function createZoomMeeting(){
     });
     const j = await resp.json();
     if(!resp.ok || !j.join_url) throw new Error(j.error || 'Zoom не ответил');
-    document.getElementById('lessonMeetingUrl').value = j.join_url;
+    addMeetingUrlRow(j.join_url);
     document.getElementById('meetingPlatforms').style.display = 'none';
     hint.textContent = 'Встреча создана. На бесплатном тарифе Zoom она прервётся через 40 минут.';
   }catch(e){
@@ -3585,7 +3687,8 @@ function openLessonModal(id, prefillDate){
   setPickedDate(l ? (l.date||'') : (prefillDate || todayStr()));
   setPickedTime(l ? (l.time||'') : '');
   setDurationField(l ? (l.duration || data.settings.defaultDuration) : data.settings.defaultDuration);
-  document.getElementById('lessonMeetingUrl').value = l ? (l.meetingUrl||'') : '';
+  draftMeetingUrls = l ? meetingUrlsOf(l).slice() : [];
+  renderMeetingUrlsList();
   document.getElementById('meetingPlatforms').style.display = 'none';
   document.getElementById('meetingHint').textContent = '';
   pickGrade(l ? (l.grade || 0) : 0);
@@ -3623,13 +3726,14 @@ function saveLesson(){
   const price = priceRaw ? parseInt(priceRaw, 10) : 0;
   const homework = document.getElementById('lessonHwInput').value.trim();
   const solution = document.getElementById('lessonSolutionInput').value.trim();
-  const meetingUrl = document.getElementById('lessonMeetingUrl').value.trim();
+  const meetingUrls = draftMeetingUrls.map(u=>u.trim()).filter(Boolean);
+  const meetingUrl = meetingUrls[0] || ''; // зеркало первой ссылки — для обратной совместимости
   const grade = pickedGrade || null;
   const gradeComment = document.getElementById('lessonGradeComment').value.trim();
 
   if(editingLessonId){
     const l = s.lessons.find(x=>x.id===editingLessonId);
-    Object.assign(l, { date, time, topic, price, duration: pickedDuration, meetingUrl, grade, gradeComment, homework, solution, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol });
+    Object.assign(l, { date, time, topic, price, duration: pickedDuration, meetingUrls, meetingUrl, grade, gradeComment, homework, solution, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol });
   } else {
     const isRecurring = document.getElementById('lessonRecurringCheckbox').checked;
 
@@ -3651,6 +3755,7 @@ function saveLesson(){
         s.lessons.push({
           id: uid(), date: occDate, time, duration: pickedDuration, price,
           topic: isFirst ? topic : '',
+          meetingUrls: isFirst ? meetingUrls : [],
           meetingUrl: isFirst ? meetingUrl : '',
           homework: isFirst ? homework : '',
           solution: isFirst ? solution : '',
@@ -3663,7 +3768,7 @@ function saveLesson(){
         cursor.setDate(cursor.getDate() + 7);
       }
     } else {
-      s.lessons.push({ id: uid(), date, time, topic, price, duration: pickedDuration, meetingUrl, grade:null, gradeComment:'', homework, solution, checked:false, paid:false, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol, recurrenceId: null });
+      s.lessons.push({ id: uid(), date, time, topic, price, duration: pickedDuration, meetingUrls, meetingUrl, grade:null, gradeComment:'', homework, solution, checked:false, paid:false, homeworkAttachments: drafts.hw, solutionAttachments: drafts.sol, recurrenceId: null });
     }
   }
   save();
@@ -4771,7 +4876,7 @@ function renderStudentCabinet(){
           </div>
         </div>
         ${l.topic ? `<div class="lesson-topic"><span class="label">${t('topicLabel')} </span>${escapeHtml(l.topic)}</div>` : ''}
-        ${l.meetingUrl ? `<div class="lesson-topic"><a class="meet-link" href="${escapeHtml(l.meetingUrl)}" target="_blank" rel="noopener">🎥 ${t('joinLessonLink')}</a></div>` : ''}
+        ${renderMeetingLinksHtml(l, t('joinLessonLink'))}
         ${l.gradeComment ? `<div class="lesson-topic"><span class="label">${t('commentLabel')} </span>${escapeHtml(l.gradeComment)}</div>` : ''}
         ${hasHw ? `
           <div class="lesson-hw">
