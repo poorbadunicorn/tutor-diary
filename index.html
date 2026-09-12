@@ -1427,6 +1427,58 @@
       <div class="muted-note" id="defaultDurationHint" style="margin-top:6px;" data-i18n="durHint">Используется для новых занятий и для расчёта загруженности.</div>
     </div>
 
+    <div class="section-label" data-i18n="notifTitle">Напоминания в Telegram</div>
+    <div class="muted-note" style="margin:-4px 0 10px;" data-i18n="notifIntroTxt">Работает, только если настроена рассылка на сервере — см. README-accounts.md, шаг 5.</div>
+
+    <div class="field">
+      <label data-i18n="notifTeacherOffsetsLabel">Вам — за сколько напомнить о занятии</label>
+      <div class="seg-row" id="notifTeacherOffsets">
+        <button type="button" class="seg" data-min="30" onclick="toggleNotifOffset('teacher',30)" data-i18n="notifOff30">30 мин</button>
+        <button type="button" class="seg" data-min="60" onclick="toggleNotifOffset('teacher',60)" data-i18n="notifOff60">1 час</button>
+        <button type="button" class="seg" data-min="120" onclick="toggleNotifOffset('teacher',120)" data-i18n="notifOff120">2 часа</button>
+        <button type="button" class="seg" data-min="1440" onclick="toggleNotifOffset('teacher',1440)" data-i18n="notifOff1440">1 день</button>
+        <button type="button" class="seg" data-min="4320" onclick="toggleNotifOffset('teacher',4320)" data-i18n="notifOff4320">3 дня</button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="switch-row" id="notifTeacherDigestRow">
+        <span class="switch"><input type="checkbox" id="notifTeacherDigestCheckbox" onchange="toggleNotifDigest('teacher', this.checked)"></span>
+        <span class="switch-text">
+          <span class="switch-title" data-i18n="notifDigestTitle">Еженедельная сводка по понедельникам</span>
+          <span class="switch-sub" data-i18n="notifDigestSubTeacher">Список всех занятий на неделю, одним сообщением</span>
+        </span>
+      </label>
+      <div class="field" style="margin-top:8px;max-width:140px;">
+        <label data-i18n="notifDigestTimeLabel">Во сколько</label>
+        <input type="text" id="notifTeacherDigestTime" placeholder="09:00" maxlength="5">
+      </div>
+    </div>
+
+    <div class="section-label" data-i18n="notifStudentTitle">Напоминания — ученикам</div>
+    <div class="field">
+      <label data-i18n="notifStudentOffsetsLabel">Ученику — за сколько напомнить о занятии</label>
+      <div class="seg-row" id="notifStudentOffsets">
+        <button type="button" class="seg" data-min="30" onclick="toggleNotifOffset('student',30)" data-i18n="notifOff30">30 мин</button>
+        <button type="button" class="seg" data-min="60" onclick="toggleNotifOffset('student',60)" data-i18n="notifOff60">1 час</button>
+        <button type="button" class="seg" data-min="120" onclick="toggleNotifOffset('student',120)" data-i18n="notifOff120">2 часа</button>
+        <button type="button" class="seg" data-min="1440" onclick="toggleNotifOffset('student',1440)" data-i18n="notifOff1440">1 день</button>
+        <button type="button" class="seg" data-min="4320" onclick="toggleNotifOffset('student',4320)" data-i18n="notifOff4320">3 дня</button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="switch-row" id="notifStudentDigestRow">
+        <span class="switch"><input type="checkbox" id="notifStudentDigestCheckbox" onchange="toggleNotifDigest('student', this.checked)"></span>
+        <span class="switch-text">
+          <span class="switch-title" data-i18n="notifDigestTitle">Еженедельная сводка по понедельникам</span>
+          <span class="switch-sub" data-i18n="notifDigestSubStudent">Список своих занятий на неделю, одним сообщением</span>
+        </span>
+      </label>
+      <div class="field" style="margin-top:8px;max-width:140px;">
+        <label data-i18n="notifDigestTimeLabel">Во сколько</label>
+        <input type="text" id="notifStudentDigestTime" placeholder="09:00" maxlength="5">
+      </div>
+    </div>
+
     <div class="section-label" data-i18n="aiAssistant">ИИ-ассистент</div>
     <div class="field">
       <label data-i18n="aiService">Сервис ИИ-ассистента</label>
@@ -1596,6 +1648,21 @@ const I18N = {
   durMin:          { ru:'мин', en:'min' },
   durHour:         { ru:'ч', en:'hr' },
   durHint:         { ru:'Используется для новых занятий и для расчёта загруженности.', en:'Used for new lessons and workload calculations.' },
+  notifTitle:            { ru:'Напоминания в Telegram', en:'Telegram reminders' },
+  notifIntroTxt:         { ru:'Работает, только если настроена рассылка на сервере — см. README-accounts.md, шаг 5.',
+                           en:'Only works if server-side sending is set up — see README-accounts.md, step 5.' },
+  notifTeacherOffsetsLabel: { ru:'Вам — за сколько напомнить о занятии', en:'You — how long before the lesson to remind' },
+  notifStudentTitle:     { ru:'Напоминания — ученикам', en:'Reminders — for students' },
+  notifStudentOffsetsLabel: { ru:'Ученику — за сколько напомнить о занятии', en:'Student — how long before the lesson to remind' },
+  notifOff30:            { ru:'30 мин', en:'30 min' },
+  notifOff60:            { ru:'1 час', en:'1 hour' },
+  notifOff120:           { ru:'2 часа', en:'2 hours' },
+  notifOff1440:          { ru:'1 день', en:'1 day' },
+  notifOff4320:          { ru:'3 дня', en:'3 days' },
+  notifDigestTitle:      { ru:'Еженедельная сводка по понедельникам', en:'Weekly summary on Mondays' },
+  notifDigestSubTeacher: { ru:'Список всех занятий на неделю, одним сообщением', en:'All lessons for the week, in one message' },
+  notifDigestSubStudent: { ru:'Список своих занятий на неделю, одним сообщением', en:'Their lessons for the week, in one message' },
+  notifDigestTimeLabel:  { ru:'Во сколько', en:'At what time' },
   aiAssistant:     { ru:'ИИ-ассистент', en:'AI assistant' },
   aiService:       { ru:'Сервис ИИ-ассистента', en:'AI service' },
   apiKeyLabel:     { ru:'API-ключ (хранится только на вашем устройстве)', en:'API key (stored only on your device)' },
@@ -2582,6 +2649,19 @@ function normalize(){
       if(!wh.end) wh.end = st.workEnd;
     }
   }
+  // Настройки напоминаний в Telegram — за сколько напомнить и еженедельная
+  // сводка по понедельникам. По умолчанию час до занятия (как было раньше,
+  // когда это было зашито в коде) и сводка включена и для преподавателя,
+  // и для ученика — реально отправляется, только если на сервере настроена
+  // рассылка (см. README-accounts.md, шаг 5).
+  if(!st.notify || typeof st.notify !== 'object') st.notify = {};
+  ['teacher','student'].forEach(who=>{
+    if(!st.notify[who] || typeof st.notify[who] !== 'object') st.notify[who] = {};
+    const n = st.notify[who];
+    if(!Array.isArray(n.offsetsMin) || !n.offsetsMin.length) n.offsetsMin = [60];
+    if(typeof n.digest !== 'boolean') n.digest = true;
+    if(!n.digestTime) n.digestTime = '09:00';
+  });
   if(!st.provider) st.provider = 'shared'; // бесплатный ассистент по умолчанию, свой ключ не нужен
   if(!st.apiKeys) st.apiKeys = {};
   if(!st.models) st.models = {};
@@ -2640,6 +2720,33 @@ function escapeHtml(str){
   const div = document.createElement('div');
   div.textContent = str || '';
   return div.innerHTML;
+}
+/* Ссылка, набранная или вставленная прямо ВНУТРИ текста (не отдельным
+   вложением), раньше оставалась обычным нежмущимся текстом — становилась
+   вложением, только если была на всей строке одна, без других слов рядом.
+   Эта функция ищет http(s)-ссылки где угодно в тексте и превращает именно
+   их в кликабельные ссылки, остальной текст остаётся обычным текстом. */
+const URL_INLINE_RE = /https?:\/\/[^\s]+/gi;
+function linkifyText(text){
+  const raw = String(text || '');
+  let out = '';
+  let lastIndex = 0;
+  let m;
+  URL_INLINE_RE.lastIndex = 0;
+  while((m = URL_INLINE_RE.exec(raw))){
+    let url = m[0];
+    // Отрезаем случайно приклеенную пунктуацию на конце («...по ссылке.», «(вот)» и т.п.)
+    const trailMatch = url.match(/[.,;:!?)\]}»"'”’]+$/);
+    let trail = '';
+    if(trailMatch){ trail = trailMatch[0]; url = url.slice(0, url.length - trail.length); }
+    if(!url){ continue; }
+    out += escapeHtml(raw.slice(lastIndex, m.index));
+    out += `<a href="${escapeHtml(url)}" onclick="return openAttachmentLink(event, this)">${escapeHtml(url)}</a>`;
+    out += escapeHtml(trail);
+    lastIndex = m.index + m[0].length;
+  }
+  out += escapeHtml(raw.slice(lastIndex));
+  return out;
 }
 function getCurrentStudent(){
   return data.students.find(x=>x.id===currentStudentId);
@@ -3088,7 +3195,7 @@ function renderLessons(s){
         <div class="hw-row">
           <div class="hw-text" style="flex:1;">
             <span class="label">Домашнее задание</span>
-            ${l.homework ? escapeHtml(l.homework) : '<span class="muted-note">Текст не указан</span>'}
+            ${l.homework ? linkifyText(l.homework) : '<span class="muted-note">Текст не указан</span>'}
             ${renderAttachmentsView(l.homeworkAttachments)}
             <div class="hw-share-row">
               <button class="btn-ghost btn-sm" onclick="copyHomework('${l.id}')">📋 Копировать</button>
@@ -3102,14 +3209,14 @@ function renderLessons(s){
         ${hasSolContent ? `
           <button class="btn-ghost btn-sm" style="margin-top:8px;padding-left:0;" onclick="toggleSolution('${l.id}')">Показать/скрыть решение</button>
           <div class="solution-box" id="sol-${l.id}">
-            ${l.solution ? escapeHtml(l.solution) : ''}
+            ${l.solution ? linkifyText(l.solution) : ''}
             ${renderAttachmentsView(l.solutionAttachments)}
           </div>
         ` : ''}
         ${l.submission ? `
           <div class="submission-box">
             <div class="hw-text">
-              <span class="label">✅ Ученик сдал работу</span>${escapeHtml(l.submission.text||'')}
+              <span class="label">✅ Ученик сдал работу</span>${linkifyText(l.submission.text||'')}
             </div>
             ${renderAttachmentsView(l.submission.attachments)}
           </div>` : ''}
@@ -3989,7 +4096,7 @@ function renderMaterials(){
           <button class="btn-ghost btn-sm" onclick="removeMaterial('${m.id}')">Удал.</button>
         </div>
       </div>
-      ${m.text ? `<div class="material-text">${escapeHtml(m.text)}</div>` : ''}
+      ${m.text ? `<div class="material-text">${linkifyText(m.text)}</div>` : ''}
       ${renderAttachmentsView(m.attachments)}
       <div class="hw-share-row">
         <button class="btn-ghost btn-sm" onclick="copyMaterial('${m.id}')">📋 Копировать</button>
@@ -4240,6 +4347,30 @@ function renderProviderFields(provider){
 function onProviderChange(){
   renderProviderFields(document.getElementById('providerSelect').value);
 }
+/* ---------- НАПОМИНАНИЯ: за сколько и еженедельная сводка ---------- */
+let draftNotify = {
+  teacher: { offsetsMin: [60], digest: true, digestTime: '09:00' },
+  student: { offsetsMin: [60], digest: true, digestTime: '09:00' }
+};
+const NOTIF_OFFSET_BOX_ID = { teacher: 'notifTeacherOffsets', student: 'notifStudentOffsets' };
+const NOTIF_DIGEST_ROW_ID = { teacher: 'notifTeacherDigestRow', student: 'notifStudentDigestRow' };
+function toggleNotifOffset(who, min){
+  const arr = draftNotify[who].offsetsMin;
+  const i = arr.indexOf(min);
+  if(i >= 0) arr.splice(i,1); else { arr.push(min); arr.sort((a,b)=>a-b); }
+  renderNotifOffsets(who);
+}
+function renderNotifOffsets(who){
+  const box = document.getElementById(NOTIF_OFFSET_BOX_ID[who]);
+  if(!box) return;
+  box.querySelectorAll('.seg').forEach(b=>
+    b.classList.toggle('on', draftNotify[who].offsetsMin.includes(Number(b.dataset.min))));
+}
+function toggleNotifDigest(who, checked){
+  draftNotify[who].digest = checked;
+  document.getElementById(NOTIF_DIGEST_ROW_ID[who]).classList.toggle('on', checked);
+}
+
 let draftWorkHours = {};
 let draftDefaultDuration = 60;
 const WEEKDAY_KEYS = { 1:'wkMon', 2:'wkTue', 3:'wkWed', 4:'wkThu', 5:'wkFri', 6:'wkSat', 7:'wkSun' };
@@ -4290,6 +4421,21 @@ function openSettingsModal(){
   }
   renderWorkHoursRows();
   setDefaultDurationField(data.settings.defaultDuration || 60);
+
+  ['teacher','student'].forEach(who=>{
+    const n = (data.settings.notify && data.settings.notify[who]) || {};
+    draftNotify[who] = {
+      offsetsMin: Array.isArray(n.offsetsMin) && n.offsetsMin.length ? n.offsetsMin.slice() : [60],
+      digest: n.digest !== false,
+      digestTime: n.digestTime || '09:00'
+    };
+    renderNotifOffsets(who);
+    const cap = who === 'teacher' ? 'Teacher' : 'Student';
+    document.getElementById(`notif${cap}DigestCheckbox`).checked = draftNotify[who].digest;
+    document.getElementById(NOTIF_DIGEST_ROW_ID[who]).classList.toggle('on', draftNotify[who].digest);
+    document.getElementById(`notif${cap}DigestTime`).value = draftNotify[who].digestTime;
+  });
+
   const sel = document.getElementById('providerSelect');
   sel.innerHTML = Object.keys(AI_PROVIDERS)
     .map(k=>`<option value="${k}">${escapeHtml(AI_PROVIDERS[k].label)}</option>`).join('');
@@ -4346,6 +4492,15 @@ function saveSettings(){
     data.settings.workEnd = onDays.reduce((max,d)=> toMinutes(workHours[d].end) > toMinutes(max) ? workHours[d].end : max, workHours[onDays[0]].end);
   }
   data.settings.defaultDuration = draftDefaultDuration;
+
+  if(!data.settings.notify) data.settings.notify = {};
+  ['teacher','student'].forEach(who=>{
+    const cap = who === 'teacher' ? 'Teacher' : 'Student';
+    const offsetsMin = draftNotify[who].offsetsMin.slice().sort((a,b)=>a-b);
+    const digest = document.getElementById(`notif${cap}DigestCheckbox`).checked;
+    const digestTime = normalizeTimeInput(document.getElementById(`notif${cap}DigestTime`).value, '09:00');
+    data.settings.notify[who] = { offsetsMin, digest, digestTime };
+  });
 
   const provider = document.getElementById('providerSelect').value;
   data.settings.provider = provider;
@@ -4880,7 +5035,7 @@ function renderStudentCabinet(){
         ${l.gradeComment ? `<div class="lesson-topic"><span class="label">${t('commentLabel')} </span>${escapeHtml(l.gradeComment)}</div>` : ''}
         ${hasHw ? `
           <div class="lesson-hw">
-            <div class="hw-text"><span class="label">${t('assignedLabel')}</span>${escapeHtml(l.homework||'')}</div>
+            <div class="hw-text"><span class="label">${t('assignedLabel')}</span>${linkifyText(l.homework||'')}</div>
             ${renderAttachmentsView(l.homeworkAttachments)}
             <div class="hw-share-row">
               <button class="btn-primary btn-sm" onclick="openSubmitModal('${l.id}')">
@@ -4890,7 +5045,7 @@ function renderStudentCabinet(){
           </div>` : ''}
         ${done ? `
           <div class="submission-box">
-            <div class="hw-text"><span class="label">${t('myWorkLabel')}</span>${escapeHtml(l.submission.text||'')}</div>
+            <div class="hw-text"><span class="label">${t('myWorkLabel')}</span>${linkifyText(l.submission.text||'')}</div>
             ${renderAttachmentsView(l.submission.attachments)}
           </div>` : ''}
       </div>`;
@@ -5036,7 +5191,7 @@ function renderTopics(){
           <button class="btn-ghost btn-sm" onclick="removeTopic('${t.id}')">Удал.</button>
         </div>
       </div>
-      ${t.text ? `<div class="material-text">${escapeHtml(t.text)}</div>` : ''}
+      ${t.text ? `<div class="material-text">${linkifyText(t.text)}</div>` : ''}
       ${renderAttachmentsView(t.attachments)}
     </div>
   `).join('');
@@ -5693,7 +5848,12 @@ function openDayModal(dateStr){
   if(data.students.length === 0){
     select.innerHTML = `<option value="">${t('pickStudentFirst')}</option>`;
   } else {
-    select.innerHTML = data.students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+    // Показываем и предмет — иначе у ученика с несколькими карточками
+    // (математика/английский и т.п.) не понять, какую именно выбрали.
+    select.innerHTML = data.students.map(s=>{
+      const label = s.subject ? `${s.name} — ${s.subject}` : s.name;
+      return `<option value="${s.id}">${escapeHtml(label)}</option>`;
+    }).join('');
   }
 
   openModal('dayModalOverlay');
