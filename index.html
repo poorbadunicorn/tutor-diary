@@ -498,6 +498,10 @@
   .loading-error-icon{font-size:30px;}
   .loading-error-title{font-size:17px;font-weight:600;margin:0;}
   .loading-error-text{color:var(--muted);font-size:13.5px;max-width:320px;}
+  .loading-error-detail{
+    color:var(--muted);font-size:11.5px;max-width:320px;word-break:break-word;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.75;
+  }
 
   /* Экран входа */
   .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -723,6 +727,7 @@
   <div class="loading-error-icon">⚠️</div>
   <div class="loading-error-title" data-i18n="loadErrorTitle">Не удалось загрузить приложение</div>
   <div class="loading-error-text" data-i18n="loadErrorText">Проверьте подключение к интернету и попробуйте ещё раз.</div>
+  <div id="loadErrorDetail" class="loading-error-detail"></div>
   <button class="btn-primary" onclick="location.reload()" data-i18n="loadRetryBtn">Повторить</button>
 </div>
 
@@ -2611,7 +2616,7 @@ function hideLoadingScreen(){
 /* Вместо вечного пустого экрана — если init() упал с ошибкой или завис
    (нет сети, не загрузились внешние скрипты и т.п.), показываем понятное
    сообщение с кнопкой "Повторить". */
-function showLoadErrorScreen(){
+function showLoadErrorScreen(detail){
   hideLoadingScreen();
   const authEl = document.getElementById('authScreen');
   const teacherEl = document.getElementById('teacherApp');
@@ -2621,13 +2626,18 @@ function showLoadErrorScreen(){
   if(studentEl) studentEl.style.display = 'none';
   const el = document.getElementById('loadErrorScreen');
   if(el) el.style.display = 'flex';
+  // Техническая строка снизу — не для перевода, но помогает понять причину
+  // на удалённом устройстве без доступа к консоли разработчика: пользователь
+  // может просто прислать скриншот с этим текстом.
+  const detailEl = document.getElementById('loadErrorDetail');
+  if(detailEl) detailEl.textContent = detail ? String(detail) : '';
 }
 
 /* На медленном/нестабильном интернете любой из сетевых запросов ниже может
    просто зависнуть, не выдав ошибки — тогда без таймаута пользователь
    остался бы смотреть на пустой экран бесконечно. */
 function withLoadTimeout(promise, ms){
-  ms = ms || 20000;
+  ms = ms || 30000;
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(()=>reject(new Error('timeout')), ms))
@@ -2642,7 +2652,11 @@ async function init(){
     await withLoadTimeout(initInner());
   }catch(e){
     console.error('Не удалось загрузить приложение:', e);
-    showLoadErrorScreen();
+    const msg = String((e && e.message) || e || '');
+    // Таймаут из withLoadTimeout — самая частая причина на медленном
+    // интернете, отдельно поясняем, что это именно долгое ожидание,
+    // а не поломка.
+    showLoadErrorScreen(msg === 'timeout' ? 'timeout: сервер не ответил за 30 секунд' : msg);
   }
 }
 
