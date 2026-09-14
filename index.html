@@ -479,6 +479,26 @@
     .app-switcher{top:10px;right:10px;}
   }
 
+  /* Экран загрузки и экран ошибки загрузки — показываются, пока init()
+     ещё не решил, какой экран открыть (сессия/Telegram/логин), и если
+     что-то пошло не так (нет сети, не загрузились внешние скрипты).
+     Без них при медленном/нестабильном интернете пользователь видит
+     просто пустой белый экран без объяснений. */
+  .loading-screen{
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;padding:20px;text-align:center;
+  }
+  .loading-spinner{
+    width:34px;height:34px;border-radius:50%;
+    border:3px solid var(--border);border-top-color:var(--accent);
+    animation:tdiary-spin .8s linear infinite;
+  }
+  @keyframes tdiary-spin{ to{ transform:rotate(360deg); } }
+  .loading-text{color:var(--muted);font-size:13.5px;}
+  .loading-error-icon{font-size:30px;}
+  .loading-error-title{font-size:17px;font-weight:600;margin:0;}
+  .loading-error-text{color:var(--muted);font-size:13.5px;max-width:320px;}
+
   /* Экран входа */
   .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
   .auth-card{
@@ -686,6 +706,24 @@
     <button type="button" data-lang="ru" onclick="setLang('ru')">RU</button>
     <button type="button" data-lang="en" onclick="setLang('en')">EN</button>
   </div>
+</div>
+
+<!-- ЭКРАН ЗАГРУЗКИ: виден сразу при открытии страницы, пока init() решает,
+     что показать (сессия / вход через Telegram / форма логина). Без этого
+     на медленном интернете пользователь видит пустой белый экран. -->
+<div id="loadingScreen" class="loading-screen">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" data-i18n="loadingText">Загрузка…</div>
+</div>
+
+<!-- ЭКРАН ОШИБКИ ЗАГРУЗКИ: вместо вечного пустого экрана — понятное
+     сообщение и кнопка "Повторить", если init() упал с ошибкой
+     (нет сети, не загрузились внешние скрипты и т.п.). -->
+<div id="loadErrorScreen" class="loading-screen" style="display:none;">
+  <div class="loading-error-icon">⚠️</div>
+  <div class="loading-error-title" data-i18n="loadErrorTitle">Не удалось загрузить приложение</div>
+  <div class="loading-error-text" data-i18n="loadErrorText">Проверьте подключение к интернету и попробуйте ещё раз.</div>
+  <button class="btn-primary" onclick="location.reload()" data-i18n="loadRetryBtn">Повторить</button>
 </div>
 
 <!-- ЭКРАН ВХОДА -->
@@ -1587,6 +1625,10 @@ function toggleTheme(){
 const LANG_KEY = 'tutor_diary_lang';
 let currentLang = 'ru';
 const I18N = {
+  loadingText:     { ru:'Загрузка…', en:'Loading…' },
+  loadErrorTitle:  { ru:'Не удалось загрузить приложение', en:'Failed to load the app' },
+  loadErrorText:   { ru:'Проверьте подключение к интернету и попробуйте ещё раз.', en:'Check your internet connection and try again.' },
+  loadRetryBtn:    { ru:'Повторить', en:'Retry' },
   stuTitle:        { ru:'Мои занятия', en:'My lessons' },
   logout:          { ru:'Выйти', en:'Log out' },
   tabLessons:      { ru:'Занятия', en:'Lessons' },
@@ -2221,6 +2263,7 @@ async function afterSignIn(){
 
   sb.rpc('touch_activity').then(()=>{}).catch(()=>{});
 
+  hideLoadingScreen();
   document.getElementById('authScreen').style.display = 'none';
   if(me.role === 'student'){
     document.getElementById('studentApp').style.display = 'block';
@@ -2292,6 +2335,7 @@ function renderStuOnboardingStep4(){
 }
 
 function showAuthScreen(){
+  hideLoadingScreen();
   document.getElementById('authScreen').style.display = 'block';
   document.getElementById('teacherApp').style.display = 'none';
   document.getElementById('studentApp').style.display = 'none';
@@ -2529,6 +2573,7 @@ function startDemo(role){
   demoMode = role;
   data = buildDemoData();
   normalize();
+  hideLoadingScreen();
   document.getElementById('authScreen').style.display = 'none';
 
   if(role === 'student'){
@@ -2556,10 +2601,52 @@ function showDemoBanner(){
   document.body.appendChild(b);
 }
 
+/* Прячем экран загрузки, как только решили, какой реальный экран показать
+   (вход, кабинет ученика/преподавателя, демо). */
+function hideLoadingScreen(){
+  const el = document.getElementById('loadingScreen');
+  if(el) el.style.display = 'none';
+}
+
+/* Вместо вечного пустого экрана — если init() упал с ошибкой или завис
+   (нет сети, не загрузились внешние скрипты и т.п.), показываем понятное
+   сообщение с кнопкой "Повторить". */
+function showLoadErrorScreen(){
+  hideLoadingScreen();
+  const authEl = document.getElementById('authScreen');
+  const teacherEl = document.getElementById('teacherApp');
+  const studentEl = document.getElementById('studentApp');
+  if(authEl) authEl.style.display = 'none';
+  if(teacherEl) teacherEl.style.display = 'none';
+  if(studentEl) studentEl.style.display = 'none';
+  const el = document.getElementById('loadErrorScreen');
+  if(el) el.style.display = 'flex';
+}
+
+/* На медленном/нестабильном интернете любой из сетевых запросов ниже может
+   просто зависнуть, не выдав ошибки — тогда без таймаута пользователь
+   остался бы смотреть на пустой экран бесконечно. */
+function withLoadTimeout(promise, ms){
+  ms = ms || 20000;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(()=>reject(new Error('timeout')), ms))
+  ]);
+}
+
 async function init(){
   applyTheme(getStoredTheme());
   currentLang = getStoredLang();
   applyLang();
+  try{
+    await withLoadTimeout(initInner());
+  }catch(e){
+    console.error('Не удалось загрузить приложение:', e);
+    showLoadErrorScreen();
+  }
+}
+
+async function initInner(){
   if(tg){
     try{ tg.ready(); }catch(e){}
     try{ tg.expand(); }catch(e){}
@@ -2586,6 +2673,7 @@ async function init(){
   if(!hasBackend()){
     data = USE_CLOUD ? await loadFromCloud() : loadLocal();
     normalize();
+    hideLoadingScreen();
     document.getElementById('teacherApp').style.display = 'block';
     switchView('students');
     maybeShowOnboarding();
