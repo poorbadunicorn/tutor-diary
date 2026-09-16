@@ -463,6 +463,16 @@
     transition:background .15s,border-color .15s;
   }
   .app-switcher:hover{background:var(--surface2);border-color:var(--border);}
+  /* Маленькая метка версии — видна на любом экране (загрузка, ошибка, вход,
+     кабинет) независимо от состояния входа. Нужна, чтобы за секунду
+     понять, действительно ли открылась только что залитая версия файла,
+     а не старая закэшированная — это несколько раз сегодня стоило
+     времени на диагностику вслепую. */
+  #buildVersion{
+    position:fixed;left:8px;bottom:6px;z-index:170;
+    font-size:10px;color:var(--muted);opacity:.5;pointer-events:none;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
   .switcher-btn{
     width:28px;height:28px;border-radius:50%;padding:0;border:none;background:transparent;
     color:var(--text);font-size:14px;display:flex;align-items:center;justify-content:center;opacity:.8;
@@ -711,6 +721,7 @@
     <button type="button" data-lang="en" onclick="setLang('en')">EN</button>
   </div>
 </div>
+<div id="buildVersion"></div>
 
 <!-- ЭКРАН ЗАГРУЗКИ: виден сразу при открытии страницы, пока init() решает,
      что показать (сессия / вход через Telegram / форма логина). Без этого
@@ -1588,6 +1599,17 @@ const SUPABASE_SYNC_FUNCTION = 'hyper-handler';
 const BOT_USERNAME = 'tutor_diary_bot';   // без @
 const MINI_APP_SHORT_NAME = '';   // короткое имя Mini App из BotFather — впишите, когда узнаете (см. README-accounts.md, шаг 6)
 /* ====================================================================== */
+
+// Метка сборки — меняйте при каждой отправке нового файла. Показывается
+// маленькой строкой в левом нижнем углу на любом экране (даже до входа) —
+// по ней сразу видно, действительно ли в браузере открылась только что
+// залитая версия, или старая, застрявшая в кэше.
+const APP_BUILD = '2026-09-16-3';
+(function(){
+  const el = document.getElementById('buildVersion');
+  if(el) el.textContent = 'build ' + APP_BUILD;
+  try{ console.log('Дневник преподавателя — build ' + APP_BUILD); }catch(e){}
+})();
 
 const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 const USE_CLOUD = !!(tg && tg.initData && tg.initData.length > 0 && tg.CloudStorage);
