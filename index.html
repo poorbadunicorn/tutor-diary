@@ -2117,7 +2117,15 @@ async function saveToCloudSafe(){
 }
 function showSyncStatus(state, msg){
   const el = document.getElementById('syncStatus');
-  if(!el || !USE_CLOUD) return;
+  // Раньше здесь стояла проверка "!USE_CLOUD" — но этот флаг относится
+  // только к отдельному, старому режиму сохранения в CloudStorage Telegram
+  // (saveToCloudSafe(), используется лишь когда backend вообще не настроен).
+  // Основной путь сохранения — pushTeacherData() через Supabase — тоже
+  // вызывает эту функцию, но из-за старой проверки индикатор "Сохранено" /
+  // "Ошибка синхронизации" был не виден почти никому, кто открывает
+  // приложение не как полноценный Mini App с доступным tg.CloudStorage
+  // (то есть практически всем, кто заходит по веб-ссылке в браузере).
+  if(!el) return;
   if(state==='saving'){ el.textContent = '☁ Сохранение…'; }
   else if(state==='ok'){
     el.textContent = '☁ Сохранено';
@@ -2261,7 +2269,11 @@ async function afterSignIn(){
 
   let { data: profile } = await sb.from('profiles').select('*').eq('id', sess.user.id).maybeSingle();
   if(!profile){
-    await sb.from('profiles').insert({ id: sess.user.id, name:'', role:'teacher' });
+    const { error: insErr } = await sb.from('profiles').insert({ id: sess.user.id, name:'', role:'teacher' });
+    // Не блокируем вход из-за этого: чаще всего причина безобидна (профиль
+    // уже успели создать параллельно tg-auth/student-access) — но фиксируем,
+    // чтобы не потерялось, если причина другая (например, RLS).
+    if(insErr) console.error('afterSignIn: не удалось создать профиль-заглушку', insErr.message);
     profile = { id: sess.user.id, role:'teacher', name:'' };
   }
   me = profile;
@@ -2405,24 +2417,31 @@ async function pushTeacherData(){
   if(saveInFlight){ savePending = true; return; }
   saveInFlight = true;
   showSyncStatus('saving');
+  // Ни один из вызовов ниже раньше не проверял свою ошибку — sb.from(...)
+  // при неудаче не бросает исключение сама по себе, а просто возвращает
+  // { error }, поэтому try/catch вокруг всей функции такие сбои даже не
+  // замечал: индикатор показывал "Сохранено", а на сервере часть (или всё)
+  // изменений на самом деле не сохранялась. Теперь каждая ошибка явно
+  // бросается дальше, чтобы дойти до showSyncStatus('error', ...) внизу.
+  const orThrow = ({ error }) => { if(error) throw error; };
   try{
-    await sb.from('teacher_docs').upsert({
+    orThrow(await sb.from('teacher_docs').upsert({
       teacher_id: me.id,
       settings: data.settings,
       library: data.subjects,
       updated_at: new Date().toISOString()
-    });
+    }));
 
     const studentRows = data.students.map(s=>({
       id: s.id, teacher_id: me.id, name: s.name, subject: s.subject || '',
       color: s.color, chat: s.chat || [], show_price: s.showPrice !== false
     }));
-    if(studentRows.length) await sb.from('students').upsert(studentRows);
+    if(studentRows.length) orThrow(await sb.from('students').upsert(studentRows));
 
     const keepStudents = data.students.map(s=>s.id);
     let del = sb.from('students').delete().eq('teacher_id', me.id);
     if(keepStudents.length) del = del.not('id','in','(' + keepStudents.join(',') + ')');
-    await del;
+    orThrow(await del);
 
     const lessonRows = [], materialRows = [];
     data.students.forEach(s=>{
@@ -2446,19 +2465,19 @@ async function pushTeacherData(){
       }));
     });
 
-    if(lessonRows.length) await sb.from('lessons').upsert(lessonRows);
-    if(materialRows.length) await sb.from('materials').upsert(materialRows);
+    if(lessonRows.length) orThrow(await sb.from('lessons').upsert(lessonRows));
+    if(materialRows.length) orThrow(await sb.from('materials').upsert(materialRows));
 
     if(keepStudents.length){
       const keepLessons = lessonRows.map(l=>l.id);
       let dl = sb.from('lessons').delete().in('student_id', keepStudents);
       if(keepLessons.length) dl = dl.not('id','in','(' + keepLessons.join(',') + ')');
-      await dl;
+      orThrow(await dl);
 
       const keepMaterials = materialRows.map(m=>m.id);
       let dm = sb.from('materials').delete().in('student_id', keepStudents);
       if(keepMaterials.length) dm = dm.not('id','in','(' + keepMaterials.join(',') + ')');
-      await dm;
+      orThrow(await dm);
     }
 
     showSyncStatus('ok');
@@ -3029,7 +3048,13 @@ async function signedUrl(path){
   const hit = signedUrlCache.get(path);
   if(hit && hit.expires > Date.now()) return hit.url;
   const { data: res, error } = await sb.storage.from('attachments').createSignedUrl(path, 3600);
-  if(error || !res) return null;
+  if(error || !res){
+    // Раньше ошибка здесь терялась молча: клик по вложению просто ничего
+    // не делал, без единой подсказки почему (файл удалён? нет доступа?
+    // сеть?). Логируем причину, чтобы её можно было увидеть и объяснить.
+    console.error('signedUrl: не удалось получить ссылку на файл', path, error && error.message);
+    return null;
+  }
   signedUrlCache.set(path, { url: res.signedUrl, expires: Date.now() + 55*60*1000 });
   return res.signedUrl;
 }
@@ -3130,7 +3155,12 @@ async function openAttachmentLink(ev, el){
     const path = el.getAttribute('data-att-path');
     if(path) url = await signedUrl(path);
   }
-  if(!url || url === '#') return false;
+  if(!url || url === '#'){
+    // Раньше клик в этом случае просто ничего не делал — человек не мог
+    // понять, сломана ли ссылка вообще, или просто нужно подождать/обновить.
+    notifyToast('Не удалось открыть файл — возможно, он удалён или пропал доступ. Попробуйте обновить страницу.');
+    return false;
+  }
   if(tg && tg.openLink) tg.openLink(url);
   else window.open(url, '_blank');
   return false;
@@ -3145,7 +3175,10 @@ async function openImagePreview(ev, el){
     const path = el.getAttribute('data-att-path');
     if(path) url = await signedUrl(path);
   }
-  if(!url || url === '#') return false;
+  if(!url || url === '#'){
+    notifyToast('Не удалось открыть изображение — возможно, оно удалено или пропал доступ. Попробуйте обновить страницу.');
+    return false;
+  }
   document.getElementById('imagePreviewImg').src = url;
   openModal('imagePreviewModalOverlay');
   return false;
